@@ -4,7 +4,7 @@
 
 **Dataset:** 522K cells, 8 samples, 387 RNA + 17 protein markers (G4X platform)
 **Gap Found:** Zero spatial pre-cancer gastric studies in Polymath (2,300 papers)
-**Recommended Focus:** Combine top 5 ideas into "Gastric Immune Atlas" paper
+**Recommended Focus:** Combine top 6 ideas into "Gastric Immune Atlas" paper
 
 ---
 
@@ -13,16 +13,16 @@
 ```
                     FEASIBILITY
                  LOW    MED    HIGH
-           ┌─────────────────────────┐
-     HIGH  │  17     6,10   1,2,3,4,5│  ← PRIORITY
-SIGNIFICANCE│  19    16,18   7,8,9   │
-     LOW   │        20      11-15    │  ← Quick wins for supplement
-           └─────────────────────────┘
+           ┌───────────────────────────┐
+     HIGH  │  18    7,11   1,2,3,4,5,6│  ← PRIORITY (6 core)
+SIGNIFICANCE│  20   17,19    8,9,10   │
+     LOW   │        21       12-16    │  ← Quick wins for supplement
+           └───────────────────────────┘
 ```
 
 ---
 
-## TIER 1: Core Paper (Do All 5)
+## TIER 1: Core Paper (Do All 6)
 
 ### 1. Spatial Immune Architecture of Gastric Pre-Cancer Progression
 **Score:** Sig⭐5 × Feas⭐5 × Nov⭐5 = **125**
@@ -233,6 +233,83 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 ---
 
+### 6. Multi-Modal PCA: Progression Trajectories & Tissue Identity
+**Score:** Sig⭐5 × Feas⭐5 × Nov⭐4 = **100**
+
+| Aspect | Detail |
+|--------|--------|
+| Question | How do RNA, protein, and combined modalities capture progression? Does intestinal metaplasia cluster with colon or stomach? |
+| Data | All 8 samples, pseudobulk + single-cell, RNA + Protein + WNN |
+| Output | Fig 1B: Multi-panel PCA showing modality-specific and combined trajectories |
+
+**Rationale: Foundational Molecular Cartography**
+
+This analysis establishes the molecular basis for all downstream hypotheses by showing:
+1. **Modality-specific signals**: Do RNA and protein tell the same story?
+2. **Progression trajectory**: Does N→M→C form a continuous gradient or discrete jumps?
+3. **Tissue identity**: Intestinal metaplasia should cluster toward "colon-like" phenotype, validating the biological model of gastric intestinalization
+
+**Implementation:**
+```python
+# Polymath grounding
+mcp__polymath-v4__search_papers(query="multi-modal PCA RNA protein spatial transcriptomics", n=10)
+mcp__polymath-v4__search_papers(query="intestinal metaplasia molecular signature colon gastric", n=10)
+
+# Analysis (scripts/41_multimodal_pca.py)
+import scanpy as sc
+import numpy as np
+from sklearn.decomposition import PCA
+
+# === BULK PCA (pseudobulk per sample) ===
+# Aggregate to sample level
+pseudobulk_rna = adata.to_df().groupby(adata.obs['sample_id']).mean()
+pseudobulk_protein = adata.obsm['protein'].groupby(adata.obs['sample_id']).mean()
+
+# Run PCA per modality
+pca_rna = PCA(n_components=10).fit_transform(pseudobulk_rna)
+pca_protein = PCA(n_components=10).fit_transform(pseudobulk_protein)
+
+# Combined (concatenate normalized)
+from sklearn.preprocessing import StandardScaler
+combined = np.hstack([
+    StandardScaler().fit_transform(pseudobulk_rna),
+    StandardScaler().fit_transform(pseudobulk_protein)
+])
+pca_combined = PCA(n_components=10).fit_transform(combined)
+
+# === SPATIAL PCA (single-cell with spatial context) ===
+# Use existing WNN embedding or compute fresh
+sc.pp.pca(adata, n_comps=50)  # RNA
+sc.pp.pca(adata, layer='protein', n_comps=20)  # Protein
+
+# Color by: stage (N/M/C), tissue_type (gastric/colon-like), sample_id
+# Highlight: metaplasia samples should shift toward "intestinal" direction
+
+# === KEY VISUALIZATION ===
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+# Row 1: Bulk PCA (RNA, Protein, Combined) colored by stage
+# Row 2: Spatial PCA projections colored by tissue identity
+# Add trajectory arrows showing N→M→C direction
+```
+
+**Key Biological Questions:**
+
+| Question | Expected Result | If Different |
+|----------|-----------------|--------------|
+| Does metaplasia cluster with colon? | Yes - intestinalization signature | Gastric-specific metaplasia pathway |
+| RNA vs Protein agreement? | Partial (r≈0.3-0.5) | Post-transcriptional regulation important |
+| Progression continuous or discrete? | Gradient with M intermediate | Stepwise transformation model |
+
+**Markers to Highlight in PCA Loadings:**
+
+| Tissue Identity | Key Markers |
+|-----------------|-------------|
+| Gastric (stomach) | MUC5AC, TFF1, GKN1/2 |
+| Intestinal (colon-like) | CDX2, MUC2, TFF3, VIL1 |
+| Cancer-associated | KI67, TP53, ERBB2 |
+
+---
+
 ## Summary: Methodological Upgrade Path
 
 | Rank | Biological Question | Old Method | **New "Sexy" Method** | Impact |
@@ -242,8 +319,9 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 | **3** | TLS Detection | Clustering | **Topological Data Analysis** | Mathematical proof of shape |
 | **4** | CAF Architecture | Heatmaps | **3D Interaction Networks** | Reveals hub topology |
 | **5** | Immune Exclusion | Distance plots | **Chemokine Vector Fields** | Visualizes forces |
+| **6** | Tissue Identity & Trajectory | Single-modality PCA | **Multi-Modal Bulk + Spatial PCA** | Validates intestinalization model |
 
-**Key Insight:** The biological questions (Top 5) remain unchanged—they are literature-backed and solid. The upgrades are **analytical engines** that transform descriptive observations into mechanistic insights worthy of high-impact journals.
+**Key Insight:** The biological questions (Top 6) are literature-backed and solid. The upgrades are **analytical engines** that transform descriptive observations into mechanistic insights worthy of high-impact journals.
 
 ---
 
@@ -251,11 +329,11 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 | # | Idea | Score | Key Insight |
 |---|------|-------|-------------|
-| 6 | RNA-protein discordance as signal | 75 | r=0.088 is biology, not failure |
-| 7 | Neighborhood signatures → stage classifier | 64 | ML on enrichment patterns |
-| 8 | Treg/CD8 ratio spatial gradients | 48 | Already have 7.3 ratio |
-| 9 | PDL1+ tumor clustering (hot/cold) | 48 | ICI response prediction |
-| 10 | Cross-sample domain transfer | 48 | SpatialGlue validation |
+| 7 | RNA-protein discordance as signal | 75 | r=0.088 is biology, not failure |
+| 8 | Neighborhood signatures → stage classifier | 64 | ML on enrichment patterns |
+| 9 | Treg/CD8 ratio spatial gradients | 48 | Already have 7.3 ratio |
+| 10 | PDL1+ tumor clustering (hot/cold) | 48 | ICI response prediction |
+| 11 | Cross-sample domain transfer | 48 | SpatialGlue validation |
 
 ---
 
@@ -263,11 +341,11 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 | # | Idea | Implementation |
 |---|------|----------------|
-| 11 | Protein QC benchmark | Document HLA-DR r=0.31 vs KI67 r=0.003 |
-| 12 | Cell composition stats | Chi-square + effect sizes for N/M/C |
-| 13 | Neighborhood enrichment per stage | `sq.gr.nhood_enrichment()` × 3 stages |
-| 14 | Moran's I for key genes | `sq.gr.spatial_autocorr()` |
-| 15 | KI67 proliferation vs immune | Map hotspots, test exclusion |
+| 12 | Protein QC benchmark | Document HLA-DR r=0.31 vs KI67 r=0.003 |
+| 13 | Cell composition stats | Chi-square + effect sizes for N/M/C |
+| 14 | Neighborhood enrichment per stage | `sq.gr.nhood_enrichment()` × 3 stages |
+| 15 | Moran's I for key genes | `sq.gr.spatial_autocorr()` |
+| 16 | KI67 proliferation vs immune | Map hotspots, test exclusion |
 
 ---
 
@@ -275,11 +353,11 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 | # | Idea | Feasibility Blocker |
 |---|------|---------------------|
-| 16 | GNN cell type prediction | Training infrastructure |
-| 17 | Contrastive RNA-protein learning | Novel method, high risk |
-| 18 | Stage classifier from spatial graphs | Sample size (n=8) |
-| 19 | scGPT fine-tuning | 357 genes may be too few |
-| 20 | Pseudo-bulk → spatial deconvolution | Validation complexity |
+| 17 | GNN cell type prediction | Training infrastructure |
+| 18 | Contrastive RNA-protein learning | Novel method, high risk |
+| 19 | Stage classifier from spatial graphs | Sample size (n=8) |
+| 20 | scGPT fine-tuning | 357 genes may be too few |
+| 21 | Pseudo-bulk → spatial deconvolution | Validation complexity |
 
 ---
 
@@ -291,7 +369,8 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 | Fig | Content | Method | Script |
 |-----|---------|--------|--------|
-| 1 | Study design + QC | Standard | `31_cell_type_annotation.py` |
+| 1A | Study design + QC | Standard | `31_cell_type_annotation.py` |
+| 1B | Multi-modal PCA trajectories | **Bulk + Spatial PCA** | `41_multimodal_pca.py` |
 | 2 | Progression streamlines N→M→C | **Pseudotime** | `34_progression_analysis.py` |
 | 3 | CAF spatial network topology | **3D Networks** | `36_caf_subtyping.py` |
 | 4 | CD8 exhaustion niche tensor | **Tensor decomp** | `35_cellcell_communication.py` |
@@ -308,10 +387,11 @@ plt.streamplot(grid_x, grid_y, grad_x, grad_y, color=grid_chemokine, cmap='coolw
 
 ## Immediate Next Steps
 
-1. **Start with Idea #1** - progression analysis with pseudotime streamlines
-2. **Run Polymath queries** for each new method before implementing
-3. **Install dependencies:** `gudhi`, `ripser`, `persim`, `tensorly`, `cellrank`
-4. **Create `40_tls_detection.py`** - new script for TDA-based TLS detection
+1. **Start with Idea #6** - Multi-modal PCA establishes foundational molecular cartography
+2. **Then Idea #1** - progression analysis with pseudotime streamlines
+3. **Run Polymath queries** for each new method before implementing
+4. **Install dependencies:** `gudhi`, `ripser`, `persim`, `tensorly`, `cellrank`
+5. **Create new scripts:** `40_tls_detection.py` (TDA), `41_multimodal_pca.py` (PCA trajectories)
 
 ### Dependency Installation
 
