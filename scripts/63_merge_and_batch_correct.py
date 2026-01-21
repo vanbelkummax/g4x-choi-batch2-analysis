@@ -505,30 +505,41 @@ def main():
     logger.info(f"Merged: {n_cells:,} cells from {n_samples} samples")
 
     # ==========================================================================
-    # CRITICAL: Save true raw counts BEFORE any normalization
+    # CRITICAL: ALWAYS save raw counts BEFORE any normalization
     # This ensures:
     #   1. merged_counts.h5ad contains exactly what was merged (no transforms)
     #   2. scVI can access raw counts via adata.layers['counts']
+    #
+    # NOTE: We unconditionally store counts regardless of magnitude. The old
+    # heuristic (X.max() > 100) could misclassify low-coverage samples as
+    # "already normalized" and break scVI. Now we always preserve the original
+    # data and let downstream tools decide what to do with it.
     # ==========================================================================
-    is_raw_counts = adata_merged.X.max() > 100  # Likely raw counts if max > 100
 
-    if is_raw_counts:
-        # Store raw counts in layers before normalization (required for scVI)
-        logger.info("Storing raw counts in .layers['counts'] for scVI compatibility...")
-        adata_merged.layers['counts'] = adata_merged.X.copy()
+    # ALWAYS store original data in layers (required for scVI)
+    logger.info("Storing original data in .layers['counts'] for scVI compatibility...")
+    adata_merged.layers['counts'] = adata_merged.X.copy()
 
-        # Save TRUE raw counts file (before any transformation)
-        logger.info("Saving true raw counts (merged_counts.h5ad)...")
-        adata_merged.write(OUTPUT_DIR / "merged_counts.h5ad")
+    # ALWAYS save raw/original counts file (before any transformation)
+    logger.info("Saving original counts (merged_counts.h5ad)...")
+    adata_merged.write(OUTPUT_DIR / "merged_counts.h5ad")
 
-        # Now normalize for visualization and Harmony
+    # Check if normalization is needed
+    # Use multiple heuristics: integer-like values, high max, no negative values
+    x_max = adata_merged.X.max()
+    x_min = adata_merged.X.min()
+    is_integer_like = np.allclose(adata_merged.X.data, np.round(adata_merged.X.data)) if hasattr(adata_merged.X, 'data') else np.allclose(adata_merged.X, np.round(adata_merged.X))
+    likely_needs_normalization = (x_max > 50) or (is_integer_like and x_min >= 0)
+
+    if likely_needs_normalization:
+        logger.info(f"Data appears to be counts (max={x_max:.1f}, integer-like={is_integer_like})")
         logger.info("Normalizing merged data...")
         sc.pp.normalize_total(adata_merged, target_sum=1e4)
         sc.pp.log1p(adata_merged)
     else:
-        logger.warning("Data appears already normalized (max value <= 100)")
-        logger.warning("Skipping raw counts save - no merged_counts.h5ad will be created")
-        logger.warning("scVI will fall back to Harmony if requested")
+        logger.info(f"Data may already be normalized (max={x_max:.2f}, integer-like={is_integer_like})")
+        logger.info("Skipping normalization - data will be used as-is")
+        logger.info("NOTE: .layers['counts'] still contains original data for scVI if needed")
 
     # Variable genes and PCA
     # For targeted panels (<2000 genes), skip HVG selection - use all genes
