@@ -19,10 +19,17 @@ import sys
 def check_environment():
     """Verify running in correct conda environment."""
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
-    if "enact" not in conda_prefix:
-        print("ERROR: This script requires the 'enact' conda environment.")
-        print(f"Current environment: {conda_prefix or 'none'}")
-        print("\nRun: conda activate enact")
+    env_name = os.path.basename(conda_prefix) if conda_prefix else ""
+
+    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
+    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
+    is_valid = any(name in env_name.lower() for name in valid_envs)
+
+    if not is_valid:
+        print("ERROR: This script requires a spatial analysis conda environment.")
+        print(f"Current environment: {env_name or 'none'}")
+        print(f"\nAccepted environments: {', '.join(valid_envs)}")
+        print("Run: conda activate enact")
         sys.exit(1)
 
 

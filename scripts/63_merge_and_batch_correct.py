@@ -37,10 +37,17 @@ import shutil
 def check_environment():
     """Verify running in correct conda environment."""
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
-    if "enact" not in conda_prefix:
-        print("ERROR: This script requires the 'enact' conda environment.")
-        print(f"Current environment: {conda_prefix or 'none'}")
-        print("\nRun: conda activate enact")
+    env_name = os.path.basename(conda_prefix) if conda_prefix else ""
+
+    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
+    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
+    is_valid = any(name in env_name.lower() for name in valid_envs)
+
+    if not is_valid:
+        print("ERROR: This script requires a spatial analysis conda environment.")
+        print(f"Current environment: {env_name or 'none'}")
+        print(f"\nAccepted environments: {', '.join(valid_envs)}")
+        print("Run: conda activate enact")
         sys.exit(1)
 
 
@@ -458,9 +465,19 @@ def main():
         sc.pp.log1p(adata_merged)
 
     # Variable genes and PCA
-    logger.info("Computing HVGs and PCA...")
-    sc.pp.highly_variable_genes(adata_merged, n_top_genes=2000, subset=True)
-    sc.pp.pca(adata_merged, n_comps=30)
+    # For targeted panels (<2000 genes), skip HVG selection - use all genes
+    n_genes = adata_merged.n_vars
+    if n_genes <= 2000:
+        logger.info(f"Targeted panel ({n_genes} genes) - using all genes for PCA")
+        adata_merged.var['highly_variable'] = True
+    else:
+        logger.info(f"Computing HVGs from {n_genes} genes...")
+        sc.pp.highly_variable_genes(adata_merged, n_top_genes=2000, subset=True)
+
+    # PCA - cap components at n_genes - 1
+    n_pcs = min(30, n_genes - 1)
+    logger.info(f"Computing PCA with {n_pcs} components...")
+    sc.pp.pca(adata_merged, n_comps=n_pcs)
     sc.pp.neighbors(adata_merged)
     sc.tl.umap(adata_merged)
 
