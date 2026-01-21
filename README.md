@@ -100,12 +100,26 @@ Comprehensive multimodal spatial transcriptomics analysis of G4X data from the C
 - TME composition
 - Checkpoint expression analysis
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [📊 DATA_DOCUMENTATION.md](docs/DATA_DOCUMENTATION.md) | Comprehensive dataset documentation with sample metrics, QC, and cell type distributions |
+| [📋 PROJECT_IDEAS_RANKED.md](docs/PROJECT_IDEAS_RANKED.md) | Ranked project ideas with feasibility/significance scoring |
+| [📚 G4X_Project_Ideas_Evidence_Based.md](docs/G4X_Project_Ideas_Evidence_Based.md) | Literature-grounded project prioritization with Polymath/Vanderbilt references |
+| [🖥️ G4X_Project_Ideas.html](docs/G4X_Project_Ideas.html) | Interactive React dashboard for project exploration |
+
 ## Repository Structure
 
 ```
 g4x-choi-batch2-analysis/
 ├── scripts/           # Analysis scripts
 ├── data/              # Processed data
+├── docs/              # Project documentation
+│   ├── DATA_DOCUMENTATION.md
+│   ├── PROJECT_IDEAS_RANKED.md
+│   ├── G4X_Project_Ideas_Evidence_Based.md
+│   └── G4X_Project_Ideas.html
 ├── results/
 │   ├── figures/       # Publication figures
 │   └── tables/        # Summary tables

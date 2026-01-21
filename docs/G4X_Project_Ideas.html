@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G4X Gastric Cancer - Evidence-Based Project Prioritization</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            padding: 3rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .header .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+
+        .meta-item .icon {
+            font-size: 1.1rem;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .section-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .section-header .badge {
+            padding: 0.25rem 0.75rem;
+            background: var(--primary);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .card-number {
+            width: 2rem;
+            height: 2rem;
+            background: var(--primary);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+        }
+
+        .score-badge {
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .stars {
+            color: var(--warning);
+            letter-spacing: 2px;
+        }
+
+        .evidence-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        .evidence-table th,
+        .evidence-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .evidence-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .evidence-table tr:hover td {
+            background: var(--bg-hover);
+        }
+
+        .code-block {
+            background: #0d1117;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            border: 1px solid var(--border);
+        }
+
+        .code-block code {
+            color: #e6edf3;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: var(--bg-hover);
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .tag.primary { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .tag.success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .tag.warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .tag.danger { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .gap-card {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1));
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .opportunity-card {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(99, 102, 241, 0.1));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .professor-card {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+        }
+
+        .professor-avatar {
+            width: 3rem;
+            height: 3rem;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .progress-bar {
+            height: 0.5rem;
+            background: var(--bg-hover);
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 9999px;
+            transition: width 0.5s ease;
+        }
+
+        .tier-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: var(--bg-card);
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .tier-icon {
+            font-size: 2rem;
+        }
+
+        .tier-1 { border-left: 4px solid #fbbf24; }
+        .tier-2 { border-left: 4px solid #94a3b8; }
+        .tier-3 { border-left: 4px solid #78716c; }
+        .tier-4 { border-left: 4px solid #6366f1; }
+
+        .accordion {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .accordion-header {
+            padding: 1rem 1.5rem;
+            background: var(--bg-card);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .accordion-header:hover {
+            background: var(--bg-hover);
+        }
+
+        .accordion-content {
+            padding: 1.5rem;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+        }
+
+        .chevron {
+            transition: transform 0.2s;
+        }
+
+        .chevron.open {
+            transform: rotate(180deg);
+        }
+
+        .quote {
+            border-left: 4px solid var(--primary);
+            padding-left: 1rem;
+            margin: 1rem 0;
+            font-style: italic;
+            color: var(--text-muted);
+        }
+
+        .paper-figure {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .figure-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+
+        .figure-box .num {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .header h1 { font-size: 1.75rem; }
+            .paper-figure { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const Accordion = ({ title, badge, children, defaultOpen = false }) => {
+            const [isOpen, setIsOpen] = useState(defaultOpen);
+            return (
+                <div className="accordion">
+                    <div className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span>{title}</span>
+                            {badge && <span className="tag primary">{badge}</span>}
+                        </div>
+                        <span className={`chevron ${isOpen ? 'open' : ''}`}>▼</span>
+                    </div>
+                    {isOpen && <div className="accordion-content">{children}</div>}
+                </div>
+            );
+        };
+
+        const ProjectCard = ({ number, title, score, significance, feasibility, novelty, evidence, implementation, output, tags }) => {
+            const [expanded, setExpanded] = useState(false);
+            return (
+                <div className="card">
+                    <div className="card-header">
+                        <div className="card-title">
+                            <span className="card-number">{number}</span>
+                            {title}
+                        </div>
+                        <div className="score-badge">{score}</div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                        <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Significance</span><div className="stars">{'★'.repeat(significance)}{'☆'.repeat(5-significance)}</div></div>
+                        <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Feasibility</span><div className="stars">{'★'.repeat(feasibility)}{'☆'.repeat(5-feasibility)}</div></div>
+                        <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Novelty</span><div className="stars">{'★'.repeat(novelty)}{'☆'.repeat(5-novelty)}</div></div>
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                        {tags.map((tag, i) => <span key={i} className={`tag ${tag.type}`}>{tag.label}</span>)}
+                    </div>
+
+                    <table className="evidence-table">
+                        <thead>
+                            <tr><th>Evidence</th><th>Source</th></tr>
+                        </thead>
+                        <tbody>
+                            {evidence.map((e, i) => (
+                                <tr key={i}><td>{e.finding}</td><td style={{ color: 'var(--text-muted)' }}>{e.source}</td></tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <button
+                        onClick={() => setExpanded(!expanded)}
+                        style={{
+                            background: 'var(--bg-hover)',
+                            border: 'none',
+                            color: 'var(--text)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '0.5rem',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            marginTop: '0.5rem'
+                        }}
+                    >
+                        {expanded ? 'Hide' : 'Show'} Implementation
+                    </button>
+
+                    {expanded && (
+                        <div style={{ marginTop: '1rem' }}>
+                            <div className="code-block">
+                                <code>{implementation}</code>
+                            </div>
+                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--bg-hover)', borderRadius: '0.5rem' }}>
+                                <strong>Output:</strong> {output}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <div className="container">
+                    <header className="header">
+                        <h1>G4X Gastric Cancer Analysis</h1>
+                        <p className="subtitle">Evidence-Based Project Prioritization</p>
+                        <div className="meta">
+                            <div className="meta-item"><span className="icon">📚</span> 2,290 Papers</div>
+                            <div className="meta-item"><span className="icon">💻</span> 578K Code Chunks</div>
+                            <div className="meta-item"><span className="icon">🧮</span> 50K Algorithms</div>
+                            <div className="meta-item"><span className="icon">📅</span> 2026-01-21</div>
+                        </div>
+                    </header>
+
+                    {/* Stats Grid */}
+                    <div className="grid" style={{ marginBottom: '3rem' }}>
+                        <div className="stat-card">
+                            <div className="stat-value">522K</div>
+                            <div className="stat-label">Total Cells</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-value">8</div>
+                            <div className="stat-label">Samples Analyzed</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-value">387</div>
+                            <div className="stat-label">RNA Genes</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-value">17</div>
+                            <div className="stat-label">Protein Markers</div>
+                        </div>
+                    </div>
+
+                    {/* Literature Gaps */}
+                    <section className="section">
+                        <div className="section-header">
+                            <h2>🔬 Confirmed Literature Gaps</h2>
+                            <span className="badge">High Novelty</span>
+                        </div>
+
+                        <div className="grid">
+                            <div className="card gap-card">
+                                <h3 style={{ marginBottom: '0.5rem' }}>Gastric Pre-Cancer Spatial ST</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Only 1 review mentions it - 0 primary studies in Polymath</p>
+                                <div className="progress-bar"><div className="progress-fill" style={{ width: '5%' }}></div></div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>Severe gap</span>
+                            </div>
+                            <div className="card gap-card">
+                                <h3 style={{ marginBottom: '0.5rem' }}>TLS in Gastric Tissue</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>15 TLS papers found, 0 gastric-specific</p>
+                                <div className="progress-bar"><div className="progress-fill" style={{ width: '0%' }}></div></div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>Zero coverage</span>
+                            </div>
+                            <div className="card gap-card">
+                                <h3 style={{ marginBottom: '0.5rem' }}>Multimodal RNA+Protein Gastric</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hits in database</p>
+                                <div className="progress-bar"><div className="progress-fill" style={{ width: '0%' }}></div></div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>Zero coverage</span>
+                            </div>
+                            <div className="card gap-card">
+                                <h3 style={{ marginBottom: '0.5rem' }}>CD8 Exhaustion Spatial in Gastric</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Methods exist (Hwang 2022), no gastric application</p>
+                                <div className="progress-bar"><div className="progress-fill" style={{ width: '15%' }}></div></div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Method available</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Vanderbilt Alignments */}
+                    <section className="section">
+                        <div className="section-header">
+                            <h2>🎓 Vanderbilt Lab Alignments</h2>
+                        </div>
+
+                        <div className="grid">
+                            <div className="professor-card">
+                                <div className="professor-avatar">TH</div>
+                                <div>
+                                    <strong>Tae Hyun Hwang</strong>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>PMID:40154487 - 4 spatial CAF subtypes</p>
+                                    <span className="tag success">Direct methodology</span>
+                                </div>
+                            </div>
+                            <div className="professor-card">
+                                <div className="professor-avatar">TH</div>
+                                <div>
+                                    <strong>Tae Hyun Hwang</strong>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>PMID:36508166 - ACTA2 predicts ICI in gastric</p>
+                                    <span className="tag warning">You have aSMA protein!</span>
+                                </div>
+                            </div>
+                            <div className="professor-card">
+                                <div className="professor-avatar">KL</div>
+                                <div>
+                                    <strong>Ken Lau</strong>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>PMID:35794563 - CAF-TME crosstalk CRC</p>
+                                    <span className="tag primary">Methods applicable</span>
+                                </div>
+                            </div>
+                            <div className="professor-card">
+                                <div className="professor-avatar">HS</div>
+                                <div>
+                                    <strong>Hirak Sarkar</strong>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>PMID:41249066 - SIID deconvolution</p>
+                                    <span className="tag primary">For sparse data</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Tier 1 Projects */}
+                    <section className="section">
+                        <div className="tier-header tier-1">
+                            <span className="tier-icon">🏆</span>
+                            <div>
+                                <h2 style={{ marginBottom: '0.25rem' }}>Tier 1: Maximum Impact</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Do all 5 - Core paper content</p>
+                            </div>
+                        </div>
+
+                        <ProjectCard
+                            number={1}
+                            title="First Spatial Atlas of Gastric Pre-Cancer Progression"
+                            score="125"
+                            significance={5}
+                            feasibility={5}
+                            novelty={5}
+                            tags={[
+                                { label: 'GAP CONFIRMED', type: 'danger' },
+                                { label: 'FIRST IN FIELD', type: 'success' }
+                            ]}
+                            evidence={[
+                                { finding: 'Zero primary gastric pre-cancer spatial studies', source: 'Polymath search' },
+                                { finding: 'Only mention in Liu 2026 review', source: 'Spatial omics review' },
+                                { finding: 'Kras-induced gastric dysplasia methodology', source: 'Min 2019 (Lau lab)' }
+                            ]}
+                            implementation={`# Polymath-grounded analysis
+mcp__polymath-v4__search_papers(
+    query="gastric intestinal metaplasia single cell atlas",
+    n=20
+)
+
+# Stage comparison
+stages = ['Normal', 'Metaplasia', 'Cancer']
+for stage in stages:
+    subset = adata[adata.obs['stage'] == stage]
+    sc.pl.spatial(subset, color='cell_type')`}
+                            output="Figure 2: Cell composition + spatial organization per stage"
+                        />
+
+                        <ProjectCard
+                            number={2}
+                            title="CD8 Exhaustion Proximity Networks"
+                            score="100"
+                            significance={5}
+                            feasibility={5}
+                            novelty={4}
+                            tags={[
+                                { label: 'HWANG METHOD', type: 'primary' },
+                                { label: 'ICI PREDICTION', type: 'warning' }
+                            ]}
+                            evidence={[
+                                { finding: 'Method validated in CRC', source: 'Hwang 2022' },
+                                { finding: 'No gastric application exists', source: 'Polymath gap' },
+                                { finding: 'PD1-PDL1 interaction score predicts ICI response', source: 'Literature consensus' }
+                            ]}
+                            implementation={`# Distance-based exhaustion scoring
+exhausted_markers = ['PDCD1', 'LAG3', 'HAVCR2', 'TIGIT', 'CXCL13']
+sc.tl.score_genes(adata, exhausted_markers, score_name='exhaustion')
+
+# Proximity analysis
+from scipy.spatial.distance import cdist
+pdl1_pos = adata[adata.obs['PDL1_protein'] > threshold]
+cd8_cells = adata[adata.obs['cell_type'] == 'CD8_T']
+distances = cdist(cd8_cells.obsm['spatial'], pdl1_pos.obsm['spatial'])`}
+                            output="Figure 4: CD8 exhaustion proximity score vs PDL1+ distance"
+                        />
+
+                        <ProjectCard
+                            number={3}
+                            title="TLS Detection in Gastric Pre-Cancer"
+                            score="100"
+                            significance={5}
+                            feasibility={4}
+                            novelty={5}
+                            tags={[
+                                { label: 'NOVEL TERRITORY', type: 'success' },
+                                { label: 'TOPOLOGY METHOD', type: 'primary' }
+                            ]}
+                            evidence={[
+                                { finding: '15 TLS spatial papers, 0 gastric-specific', source: 'Polymath gap confirmed' },
+                                { finding: 's4-CAFs associated with TLS', source: 'Hwang 2025' },
+                                { finding: 'Persistent Homology for aggregates (176 mentions)', source: 'Cross-domain algorithm' }
+                            ]}
+                            implementation={`# B-T co-localization for TLS detection
+sq.gr.co_occurrence(adata, cluster_key="cell_type")
+sq.pl.co_occurrence(adata, cluster_key="cell_type",
+    clusters=['B_cell', 'CD4_T', 'CD8_T'])
+
+# Novel: Persistent homology approach
+from ripser import ripser
+from persim import plot_diagrams
+# Detect 1-dim holes = B-T aggregates`}
+                            output="Figure 5: TLS detection algorithm + density per progression stage"
+                        />
+
+                        <ProjectCard
+                            number={4}
+                            title="Spatial CAF Subtyping (Hwang Framework)"
+                            score="80"
+                            significance={4}
+                            feasibility={5}
+                            novelty={4}
+                            tags={[
+                                { label: 'HWANG 2025', type: 'primary' },
+                                { label: 'REPLICATION+', type: 'success' }
+                            ]}
+                            evidence={[
+                                { finding: '4 conserved spatial CAF subtypes defined', source: 'Hwang 2025 (PMID:40154487)' },
+                                { finding: 'ACTA2 predicts ICI response in gastric', source: 'Hwang 2023 (PMID:36508166)' },
+                                { finding: 'All required markers available', source: 'Your panel: ACTA2, IL6, CD74, HLA-DR' }
+                            ]}
+                            implementation={`# Hwang CAF signature scoring
+caf_signatures = {
+    's1_mCAF': ['ACTA2', 'TAGLN', 'MYL9'],
+    's2_eCAF': ['COL1A1', 'COL3A1', 'FN1'],
+    's3_iCAF': ['IL6', 'PDGFRA', 'CFD'],
+    's4_apCAF': ['CD74', 'HLA-DRA', 'HLA-DRB1']
+}
+
+for subtype, genes in caf_signatures.items():
+    available = [g for g in genes if g in adata.var_names]
+    sc.tl.score_genes(adata, available, score_name=subtype)`}
+                            output="Figure 3: CAF subtype spatial maps + proportions by stage"
+                        />
+
+                        <ProjectCard
+                            number={5}
+                            title="Immune Exclusion Gradient Quantification"
+                            score="80"
+                            significance={4}
+                            feasibility={5}
+                            novelty={4}
+                            tags={[
+                                { label: 'DIRECT MEASUREMENT', type: 'success' },
+                                { label: 'ICI RELEVANCE', type: 'warning' }
+                            ]}
+                            evidence={[
+                                { finding: 'IEX signature validated in CRC', source: 'Molecular cartography paper' },
+                                { finding: 'Only TGFBI available (1/4 genes)', source: 'Panel limitation' },
+                                { finding: 'Direct spatial distance more robust', source: 'Alternative approach' }
+                            ]}
+                            implementation={`# Immune-to-epithelial distance by stage
+from scipy.spatial import cKDTree
+
+epithelial = adata[adata.obs['lineage'] == 'Epithelial']
+immune = adata[adata.obs['lineage'] == 'Immune']
+
+tree = cKDTree(epithelial.obsm['spatial'])
+distances, _ = tree.query(immune.obsm['spatial'], k=1)
+
+# Compare per stage
+for stage in ['Normal', 'Metaplasia', 'Cancer']:
+    stage_dist = distances[immune.obs['stage'] == stage]
+    print(f"{stage}: mean = {np.mean(stage_dist):.2f}")`}
+                            output="Figure 6: Immune exclusion gradient visualization + statistics"
+                        />
+                    </section>
+
+                    {/* Tier 2 */}
+                    <section className="section">
+                        <div className="tier-header tier-2">
+                            <span className="tier-icon">🥈</span>
+                            <div>
+                                <h2 style={{ marginBottom: '0.25rem' }}>Tier 2: High Value If Time</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Extended analysis options</p>
+                            </div>
+                        </div>
+
+                        <div className="grid">
+                            {[
+                                { num: 6, title: 'RNA-Protein Discordance as Signal', score: 75, insight: 'r=0.088 is biology, not failure' },
+                                { num: 7, title: 'Neighborhood Stage Classifier', score: 64, insight: 'ML on enrichment patterns' },
+                                { num: 8, title: 'Treg/CD8 Ratio Gradients', score: 48, insight: 'Already have 7.3 ratio' },
+                                { num: 9, title: 'PDL1+ Clustering (Hot/Cold)', score: 48, insight: 'ICI response prediction' },
+                                { num: 10, title: 'Cross-Sample Domain Transfer', score: 48, insight: 'SpatialGlue validation' }
+                            ].map(p => (
+                                <div key={p.num} className="card">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div className="card-title">
+                                            <span className="card-number">{p.num}</span>
+                                            {p.title}
+                                        </div>
+                                        <span className="tag primary">Score: {p.score}</span>
+                                    </div>
+                                    <p style={{ color: 'var(--text-muted)', marginTop: '0.75rem', fontSize: '0.9rem' }}>{p.insight}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Cross-Domain Algorithms */}
+                    <section className="section">
+                        <div className="section-header">
+                            <h2>🔗 Cross-Domain Algorithm Opportunities</h2>
+                        </div>
+
+                        <table className="evidence-table">
+                            <thead>
+                                <tr>
+                                    <th>Algorithm</th>
+                                    <th>Domain</th>
+                                    <th>Spatial Application</th>
+                                    <th>Mentions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Persistent Homology</strong></td>
+                                    <td><span className="tag">Topology</span></td>
+                                    <td>TLS/aggregate detection</td>
+                                    <td>176</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Community Detection</strong></td>
+                                    <td><span className="tag">Graph Theory</span></td>
+                                    <td>Spatial niche discovery</td>
+                                    <td>173</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Optimal Transport</strong></td>
+                                    <td><span className="tag">Mathematics</span></td>
+                                    <td>Sample alignment</td>
+                                    <td>3,830</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Entropy</strong></td>
+                                    <td><span className="tag">Information Theory</span></td>
+                                    <td>Spatial gene selection</td>
+                                    <td>171</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Louvain Algorithm</strong></td>
+                                    <td><span className="tag">Graph Theory</span></td>
+                                    <td>Neighborhood analysis</td>
+                                    <td>128</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    {/* Paper Strategy */}
+                    <section className="section">
+                        <div className="section-header">
+                            <h2>📄 Paper Strategy</h2>
+                        </div>
+
+                        <div className="card opportunity-card">
+                            <h3 style={{ marginBottom: '1rem' }}>Recommended Title</h3>
+                            <p style={{ fontSize: '1.1rem', fontStyle: 'italic' }}>
+                                "Spatial multi-omic atlas of gastric pre-cancer progression reveals CAF niche reorganization and emergent tertiary lymphoid structures"
+                            </p>
+                        </div>
+
+                        <h3 style={{ margin: '2rem 0 1rem' }}>Figure Plan</h3>
+                        <div className="paper-figure">
+                            {[
+                                { num: 1, title: 'Study Design + QC' },
+                                { num: 2, title: 'Cell Composition N→M→C' },
+                                { num: 3, title: 'Spatial CAF Subtypes' },
+                                { num: 4, title: 'CD8 Exhaustion' },
+                                { num: 5, title: 'TLS Detection' },
+                                { num: 6, title: 'Immune Exclusion' }
+                            ].map(f => (
+                                <div key={f.num} className="figure-box">
+                                    <div className="num">Fig {f.num}</div>
+                                    <div>{f.title}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <h3 style={{ margin: '2rem 0 1rem' }}>Target Journals</h3>
+                        <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                            {[
+                                { name: 'Cancer Cell', if: 'Hwang publishes here', rank: 1 },
+                                { name: 'Gut', if: 'IF 24.5', rank: 2 },
+                                { name: 'Gastroenterology', if: 'IF 29.4', rank: 3 },
+                                { name: 'Nature Comms', if: 'IF 16.6', rank: 4 }
+                            ].map(j => (
+                                <div key={j.name} className="card" style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--primary)' }}>#{j.rank}</div>
+                                    <div style={{ fontWeight: '600', marginTop: '0.5rem' }}>{j.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{j.if}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Footer */}
+                    <footer style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', marginTop: '3rem' }}>
+                        <p>Generated with Polymath Knowledge System</p>
+                        <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Data sources: 2,290 papers • 578K code chunks • 50K algorithms • Vanderbilt Professors DB</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
