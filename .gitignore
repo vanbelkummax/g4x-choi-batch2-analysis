@@ -1,0 +1,27 @@
+# Data files
+data/raw/
+*.h5
+*.h5ad
+*.csv.gz
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.env
+*.log
+
+# Large files
+*.tiff
+*.btf
+*.png
+!results/figures/*.png
+!results/figures/*.jpg
+!results/figures/*.pdf
+
+# IDE
+.vscode/
+.idea/

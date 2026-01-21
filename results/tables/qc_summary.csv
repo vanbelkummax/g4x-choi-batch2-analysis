@@ -1,0 +1,14 @@
+Metric,Value
+Total Samples,32
+Total Cells,"2,308,968"
+Total Transcripts,"192,411,241"
+Mean Cells/Sample,"72,155"
+Median Cells/Sample,"63,511"
+Mean Transcripts/Cell,62.3
+Median Genes/Cell (mean),34.3
+Mean Empty Cell %,1.40%
+Mean Q20 %,90.6%
+Samples with >50K cells,19
+Samples with low trans (<40),2
+High SNR proteins (>2),17
+Low SNR proteins (<1),0
