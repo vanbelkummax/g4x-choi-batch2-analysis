@@ -1,0 +1,8 @@
+sample,response,timepoint,n_significant,n_total,pct_significant,n_cell_types
+YP03A,NR,Pre,144,144,100.0,14
+YP03C,NR,Post,121,121,100.0,14
+YP04C,NR,Post,16,16,100.0,13
+YP12A,R,Pre,64,64,100.0,14
+YP12C,R,Post,144,144,100.0,14
+YP15A,R,Pre,64,64,100.0,14
+YP15C,R,Post,64,64,100.0,14

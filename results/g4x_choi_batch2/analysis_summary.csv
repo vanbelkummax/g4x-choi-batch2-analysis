@@ -1,0 +1,9 @@
+sample_id,n_cells,n_genes,n_clusters,has_protein
+A01,113389,357,36,True
+B01,26161,352,8,True
+C01,34166,356,13,True
+D01,23935,351,9,True
+E01,32440,353,11,True
+F01,53156,363,28,True
+G01,155843,375,30,True
+H01,83098,366,24,True
