@@ -12,214 +12,343 @@
 
 ---
 
-## Option A: Finish the Science
+## Panel Availability (351 RNA genes, 17 proteins)
 
-**Goal:** Characterize gastric cancer progression using spatial transcriptomics
+### Available Markers by Analysis Type
 
-**Timeline:** 1-2 days
+| Analysis | Available Markers | Feasibility |
+|----------|-------------------|-------------|
+| **CAF Subtyping** | mCAF: ACTA2, TAGLN, aSMA(prot) / iCAF: IL6, PDPN, PDGFRA / apCAF: CD74, HLA-DRA, HLA-DR(prot) | ✅ Full |
+| **Cell-Cell Comm** | 23/26 key LR pairs (CCL2, CCL5, CXCL9, CXCL10, IL6, TGFB1, etc.) | ✅ Full |
+| **Gastric Markers** | CDX2, MUC2, MUC5AC, MUC6, TFF1, TFF2, TFF3, PGC | ✅ Full |
+| **IEX Signature** | Only TGFBI (1/4: DDR1, PAK4, DPEP1 missing) | ⚠️ Limited |
+| **Proliferation** | PCNA, TOP2A, ERBB2, TP53, CDKN2A | ✅ Partial |
 
-**Output:** Poster/short paper on N→M→C progression
+---
 
-### A1. Progression Analysis Script
+## COMPREHENSIVE ANALYSIS PLAN
+
+### Phase 1: Core Progression Analysis
 **Script:** `34_progression_analysis.py`
+**Samples:** D01 (Normal) → E01 (Metaplasia) → F01 (Cancer)
 
-**Samples:** SNU-105 series (matched patient)
-- D01: Normal gastric mucosa
-- E01: Intestinal metaplasia
-- F01: Gastric cancer
-
-**Analyses:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ A1.1 Cell Type Proportion Changes                               │
+│ 1.1 Cell Type Proportion Changes                                │
 │ ─────────────────────────────────────────────────────────────── │
 │ - Bar plot: lineage % across N→M→C                              │
 │ - Statistical test: chi-square or Fisher's exact                │
 │ - Key question: Which cell types expand/contract?               │
 ├─────────────────────────────────────────────────────────────────┤
-│ A1.2 Pseudobulk Differential Expression                         │
+│ 1.2 Pseudobulk Differential Expression                          │
 │ ─────────────────────────────────────────────────────────────── │
 │ - Normal vs Metaplasia                                          │
 │ - Metaplasia vs Cancer                                          │
 │ - Normal vs Cancer                                              │
-│ - Method: DESeq2 or edgeR on aggregated counts                  │
+│ - Method: scanpy rank_genes_groups (Wilcoxon) or DESeq2         │
 ├─────────────────────────────────────────────────────────────────┤
-│ A1.3 Spatial Neighborhood Analysis                              │
+│ 1.3 Gastric Progression Markers                                 │
 │ ─────────────────────────────────────────────────────────────── │
-│ - Squidpy nhood_enrichment per stage                            │
-│ - Question: Do immune cells get excluded from tumor?            │
-│ - Co-occurrence analysis: which cells are neighbors?            │
-├─────────────────────────────────────────────────────────────────┤
-│ A1.4 Marker Gene Expression                                     │
-│ ─────────────────────────────────────────────────────────────── │
-│ - Known progression markers (CDX2, MUC2, MUC5AC)                │
-│ - Spatial expression patterns                                   │
-│ - Violin plots per stage                                        │
+│ - CDX2: intestinal metaplasia marker                            │
+│ - MUC2/MUC5AC: goblet cell / gastric foveolar                   │
+│ - TFF1/TFF2/TFF3: trefoil factors                               │
+│ - Spatial expression patterns + violin plots per stage          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### A2. Key Figures to Generate
-
-| Figure | Content | Purpose |
-|--------|---------|---------|
-| Fig 1 | Spatial maps colored by cell type (N, M, C) | Overview |
-| Fig 2 | Cell type proportion stacked bar | Composition changes |
-| Fig 3 | Volcano plots (N vs M, M vs C) | DE genes |
-| Fig 4 | Neighborhood enrichment heatmaps | Spatial organization |
-| Fig 5 | Marker gene spatial expression | Validation |
-
-### A3. Expected Findings
-
-Based on preliminary data:
-1. **Epithelial decrease:** 25% (Normal) → 27% (Metaplasia) → 22% (Cancer)
-2. **Stromal increase:** Possible desmoplastic reaction (see G01: 37% fibroblasts)
-3. **Immune changes:** TBD - may see exclusion in cancer
-
-### A4. Deliverables
-
-- [ ] `34_progression_analysis.py` - Main analysis script
-- [ ] `results/g4x_choi_batch2/progression/` - Output directory
-- [ ] Figures for poster/paper
-- [ ] Summary statistics CSV
+**Deliverables:**
+- [ ] Cell type proportion statistics
+- [ ] DE gene lists (N vs M, M vs C, N vs C)
+- [ ] Marker gene spatial plots
 
 ---
 
-## Option B: Validate the Method
+### Phase 2: Cell-Cell Communication Analysis (NEW)
+**Script:** `35_cellcell_communication.py`
+**Method:** LIANA+ (integrates CellPhoneDB, CellChat, NicheNet)
 
-**Goal:** Benchmark our pipeline against alternatives and validate novel components
-
-**Timeline:** 2-3 days
-
-**Output:** Methods validation, potential methods paper
-
-### B1. Clustering Comparison
-**Script:** `36_clustering_benchmark.py`
-
-**Methods to Compare:**
-| Method | Implementation | Notes |
-|--------|----------------|-------|
-| WNN | Seurat/muon | Our current |
-| RNA-only Leiden | Scanpy | Resolve baseline |
-| SpatialGlue | spatialglue | Spatial-aware GNN |
-| totalVI | scvi-tools | VAE-based |
-
-**Metrics:**
-- ARI (Adjusted Rand Index) vs reference
-- NMI (Normalized Mutual Information)
-- Silhouette score
-- Marker coherence per cluster
-
-### B2. Admixture QC Validation
-**Script:** `37_admixture_validation.py`
-
-**Questions to Answer:**
-1. Are high-admixture cells at segmentation boundaries?
-2. Do they have mixed marker expression?
-3. Does removing them improve downstream DE?
-
-**Validation Approach:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ B2.1 Spatial Distribution                                       │
+│ 2.1 LIANA+ Analysis                                             │
 │ ─────────────────────────────────────────────────────────────── │
-│ - Plot admixture score spatially                                │
-│ - Check: Are flagged cells at tissue edges/boundaries?          │
+│ - Run LIANA rank_aggregate per sample/stage                     │
+│ - Resource: 'consensus' database                                │
+│ - Group by cell_type annotation                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│ B2.2 Marker Expression                                          │
+│ 2.2 Stage Comparison                                            │
 │ ─────────────────────────────────────────────────────────────── │
-│ - Compare marker profiles: clean vs flagged cells               │
-│ - Flagged cells should have mixed lineage markers               │
+│ - Compare LR interactions: Normal vs Metaplasia vs Cancer       │
+│ - Key question: Which interactions change with progression?     │
+│ - Focus: Epithelial-Immune, CAF-Immune, CAF-Epithelial          │
 ├─────────────────────────────────────────────────────────────────┤
-│ B2.3 Downstream Impact                                          │
+│ 2.3 Visualization                                               │
 │ ─────────────────────────────────────────────────────────────── │
-│ - Run DE with/without QC filtering                              │
-│ - Compare: Does QC improve signal-to-noise?                     │
+│ - Dotplot: CAF → Immune interactions                            │
+│ - Chord diagram: top interactions per stage                     │
+│ - Heatmap: LR pair magnitude changes                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### B3. Annotation Validation
-**Script:** `38_annotation_validation.py`
+**Available LR Pairs (23/26):**
+CCL2, CCL5, CXCL9, CXCL10, IL6, IL1B, TGFB1, CCR2, CCR5, CXCR3, CXCR4,
+CD40-CD40LG, CD80/CD86-CD28/CTLA4, PD1-PDL1, VEGFA/B-KDR
 
-**Approach:**
-1. Check marker gene expression per annotated cell type
-2. Compare to published gastric cancer scRNA-seq atlases
-3. Calculate annotation confidence metrics
-
-### B4. Method Comparison Summary
-
-**Generate comparison table:**
-```
-┌──────────────────┬─────────┬───────────┬──────────┬───────────┐
-│ Method           │ ARI     │ Silhouette│ Runtime  │ Spatial   │
-├──────────────────┼─────────┼───────────┼──────────┼───────────┤
-│ RNA-only         │ ?       │ ?         │ Fast     │ No        │
-│ WNN (ours)       │ ?       │ ?         │ Medium   │ No        │
-│ SpatialGlue      │ ?       │ ?         │ Slow     │ Yes       │
-│ totalVI          │ ?       │ ?         │ Medium   │ No        │
-└──────────────────┴─────────┴───────────┴──────────┴───────────┘
-```
-
-### B5. Deliverables
-
-- [ ] `36_clustering_benchmark.py`
-- [ ] `37_admixture_validation.py`
-- [ ] `38_annotation_validation.py`
-- [ ] `results/g4x_choi_batch2/benchmarks/` - Comparison results
-- [ ] METHOD_COMPARISON.md - Updated with results
+**Deliverables:**
+- [ ] LIANA results per stage
+- [ ] Top changing interactions list
+- [ ] Communication dotplots/chord diagrams
 
 ---
 
-## Recommended Execution Order
+### Phase 3: CAF Subtyping (NEW)
+**Script:** `36_caf_subtyping.py`
+**Reference:** Song et al. 2025, Peng et al. 2022
 
 ```
-Week 1: Option A (Science)
-├── Day 1: 34_progression_analysis.py
-├── Day 2: Generate figures, interpret results
-└── Day 3: Write up findings
-
-Week 2: Option B (Methods)
-├── Day 1: 36_clustering_benchmark.py
-├── Day 2: 37_admixture_validation.py
-├── Day 3: 38_annotation_validation.py
-└── Day 4: Compile results, update documentation
+┌─────────────────────────────────────────────────────────────────┐
+│ 3.1 CAF Identification                                          │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Filter fibroblast population from annotations                 │
+│ - Verify with COL1A1, PDGFRA expression                         │
+├─────────────────────────────────────────────────────────────────┤
+│ 3.2 Subtype Scoring                                             │
+│ ─────────────────────────────────────────────────────────────── │
+│ - mCAF (myofibroblast): ACTA2, TAGLN + aSMA(protein)            │
+│ - iCAF (inflammatory): IL6, PDPN, PDGFRA                        │
+│ - apCAF (antigen-presenting): CD74, HLA-DRA + HLA-DR(protein)   │
+│ - Method: sc.tl.score_genes() for each signature                │
+├─────────────────────────────────────────────────────────────────┤
+│ 3.3 Spatial Distribution                                        │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Map CAF subtypes spatially                                    │
+│ - Question: Are iCAFs near immune cells? mCAFs near epithelium? │
+│ - Compare CAF subtype proportions N→M→C                         │
+├─────────────────────────────────────────────────────────────────┤
+│ 3.4 G01 Deep Dive                                               │
+│ ─────────────────────────────────────────────────────────────── │
+│ - G01 has 36.7% fibroblasts - subtype these                     │
+│ - Correlate with immune infiltration                            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Rationale:** Science first validates method implicitly. If progression findings are biologically meaningful, the method is working.
+**Deliverables:**
+- [ ] CAF subtype assignments
+- [ ] Subtype proportion by stage
+- [ ] Spatial CAF subtype maps
 
 ---
 
-## Dependencies
+### Phase 4: Spatial Domain Detection (NEW)
+**Script:** `37_spatial_domains.py`
+**Method:** SpatialGlue (recommended) or SpatialPCA
 
-### For Option A
-```bash
-conda activate enact
-# Already installed: scanpy, squidpy, muon
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 4.1 SpatialGlue Integration                                     │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Input: RNA + Protein + Spatial coordinates                    │
+│ - Uses dual attention mechanism for spatial-aware clustering    │
+│ - Should give better anatomical detail than WNN                 │
+├─────────────────────────────────────────────────────────────────┤
+│ 4.2 Domain Characterization                                     │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Identify spatially coherent regions                           │
+│ - Compare to WNN clusters                                       │
+│ - Check if spatial domains capture tissue architecture better   │
+├─────────────────────────────────────────────────────────────────┤
+│ 4.3 Spatially Variable Genes                                    │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Moran's I via squidpy (sq.gr.spatial_autocorr)                │
+│ - Identify genes with spatial patterning                        │
+│ - Compare SVGs across stages                                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### For Option B (Additional)
+**Dependencies:**
 ```bash
-# SpatialGlue
-pip install SpatialGlue
-
-# scvi-tools (for totalVI)
-pip install scvi-tools
+pip install SpatialGlue  # If not installed
 ```
+
+**Deliverables:**
+- [ ] Spatial domain assignments
+- [ ] WNN vs SpatialGlue comparison
+- [ ] Top SVG list per stage
+
+---
+
+### Phase 5: Trajectory/Pseudotime Analysis (NEW)
+**Script:** `38_trajectory_analysis.py`
+**Method:** SpatialPCA or CellRank
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 5.1 SpatialPCA Pseudotime                                       │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Spatially-aware dimension reduction                           │
+│ - Infer pseudotime along spatial gradients                      │
+│ - Can capture N→M→C transitions within tissues                  │
+├─────────────────────────────────────────────────────────────────┤
+│ 5.2 Epithelial Trajectory                                       │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Focus on epithelial cells only                                │
+│ - Normal gastric → Metaplasia → Cancer                          │
+│ - Identify intermediate states                                  │
+├─────────────────────────────────────────────────────────────────┤
+│ 5.3 Trajectory-Associated Genes                                 │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Genes changing along pseudotime                               │
+│ - Validate with known progression markers                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Dependencies:**
+```bash
+pip install SpatialPCA  # R package, may need rpy2
+# Alternative: Use scanpy PAGA + diffusion pseudotime
+```
+
+**Deliverables:**
+- [ ] Pseudotime assignments
+- [ ] Trajectory visualization
+- [ ] Trajectory-associated gene list
+
+---
+
+### Phase 6: Spatial Statistics (Enhanced)
+**Script:** `39_spatial_statistics.py`
+**Method:** Squidpy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 6.1 Neighborhood Enrichment                                     │
+│ ─────────────────────────────────────────────────────────────── │
+│ - sq.gr.nhood_enrichment per stage                              │
+│ - Compare neighborhood patterns N→M→C                           │
+│ - Key: immune cell neighbors of epithelial cells                │
+├─────────────────────────────────────────────────────────────────┤
+│ 6.2 Co-occurrence Analysis                                      │
+│ ─────────────────────────────────────────────────────────────── │
+│ - sq.gr.co_occurrence                                           │
+│ - Which cell types co-localize at each stage?                   │
+│ - Changes in co-occurrence patterns                             │
+├─────────────────────────────────────────────────────────────────┤
+│ 6.3 Interaction Distances                                       │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Compute pairwise distances between cell types                 │
+│ - Compare immune-tumor distance across stages                   │
+│ - Quantify immune exclusion                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ 6.4 Ripley's Statistics                                         │
+│ ─────────────────────────────────────────────────────────────── │
+│ - sq.gr.ripley for spatial clustering patterns                  │
+│ - Are certain cell types spatially clustered?                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Deliverables:**
+- [ ] Neighborhood enrichment heatmaps per stage
+- [ ] Co-occurrence plots
+- [ ] Quantified immune exclusion metrics
+
+---
+
+### Phase 7: IEX Signature Check (Limited)
+**Script:** Part of `34_progression_analysis.py`
+
+**Status:** Only 1/4 IEX genes available (TGFBI)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 7.1 TGFBI Expression                                            │
+│ ─────────────────────────────────────────────────────────────── │
+│ - Plot TGFBI expression across stages                           │
+│ - Spatial distribution of TGFBI                                 │
+│ - Correlate with immune infiltration                            │
+│ - Note: Full IEX signature not testable (DDR1, PAK4, DPEP1 NA)  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Note:** Document this limitation in any publication. The IEX signature from Heiser et al. 2023 requires DDR1, TGFBI, PAK4, DPEP1 - only TGFBI is in our panel.
+
+---
+
+## Execution Order
+
+```
+Day 1: Phase 1 (Core Progression)
+├── 34_progression_analysis.py
+├── Cell type proportions, DE, gastric markers
+└── Checkpoint: Clear N→M→C changes?
+
+Day 2: Phase 2+3 (Communication + CAF)
+├── 35_cellcell_communication.py (LIANA+)
+├── 36_caf_subtyping.py
+└── Checkpoint: Meaningful LR changes? CAF subtypes identified?
+
+Day 3: Phase 4+5 (Spatial + Trajectory)
+├── 37_spatial_domains.py (SpatialGlue)
+├── 38_trajectory_analysis.py
+└── Checkpoint: Better spatial structure? Trajectory makes sense?
+
+Day 4: Phase 6 (Spatial Statistics)
+├── 39_spatial_statistics.py
+├── Compile all results
+└── Generate summary figures
+```
+
+---
+
+## Key Figures to Generate
+
+| Figure | Content | Phase |
+|--------|---------|-------|
+| Fig 1 | Spatial maps colored by cell type (N, M, C) | 1 |
+| Fig 2 | Cell type proportion stacked bar | 1 |
+| Fig 3 | Volcano plots (N vs M, M vs C) | 1 |
+| Fig 4 | Gastric marker spatial expression | 1 |
+| Fig 5 | **LIANA dotplot: changing LR pairs** | 2 |
+| Fig 6 | **CAF subtype spatial distribution** | 3 |
+| Fig 7 | **Spatial domains vs WNN clusters** | 4 |
+| Fig 8 | **Pseudotime trajectory** | 5 |
+| Fig 9 | Neighborhood enrichment heatmaps | 6 |
+| Fig 10 | Immune exclusion quantification | 6 |
 
 ---
 
 ## Success Criteria
 
-### Option A Success
 - [ ] Clear N→M→C cell type changes documented
 - [ ] At least 50 significant DE genes per comparison
-- [ ] Spatial neighborhood differences between stages
-- [ ] One compelling summary figure
+- [ ] Cell-cell communication changes identified (LIANA)
+- [ ] CAF subtypes characterized (mCAF/iCAF/apCAF proportions)
+- [ ] Spatial domains improve on WNN clustering
+- [ ] Epithelial trajectory captures progression
+- [ ] Spatial statistics show immune exclusion in cancer
 
-### Option B Success
-- [ ] WNN performs ≥ as well as alternatives (or identify better method)
-- [ ] Admixture QC removes demonstrably bad cells
-- [ ] Annotations match expected marker expression
-- [ ] Clear recommendation for pipeline improvements
+---
+
+## Dependencies
+
+```bash
+conda activate enact
+
+# Already installed
+# scanpy, squidpy, muon, liana
+
+# May need to install
+pip install SpatialGlue  # Spatial domain detection
+pip install scvi-tools   # totalVI (if benchmarking)
+```
+
+---
+
+## References (from Polymath)
+
+1. **Cell-cell communication:** Jin et al. 2025 "CellChat for systematic analysis" Nat Protoc
+2. **CAF subtypes:** Song et al. 2025 "Antigen-presenting CAFs in gastric cancer"
+3. **Spatial domains:** Shang & Zhou 2022 "SpatialPCA" Nat Commun
+4. **IEX signature:** Heiser et al. 2023 "Molecular cartography" Cell (DDR1, TGFBI, PAK4, DPEP1)
+5. **Spatial statistics:** Palla et al. 2022 "Squidpy" Nat Methods
 
 ---
 
@@ -232,4 +361,3 @@ pip install scvi-tools
 See also:
 - `VALIDATION.md` - Resolve comparison results
 - `METHOD_COMPARISON.md` - Competitive landscape analysis
-- `G4X_ANALYSIS_PLAN.md` - Original analysis plan
