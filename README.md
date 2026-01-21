@@ -73,6 +73,79 @@ Comprehensive multimodal spatial transcriptomics analysis of G4X data from the C
 | G04 | 64,147 | 53 | 29 |
 | H04 | 32,334 | 25 | 11 |
 
+## Study Design & Sample Metadata
+
+### Disease Stage Classification
+
+Samples are labeled with disease stage suffixes in the block name:
+- **N** = Normal gastric mucosa
+- **M** = Intestinal Metaplasia (pre-malignant)
+- **C** = Gastric Cancer
+- **X** = Adjacent/other tissue
+
+### Complete Sample Inventory (32 samples)
+
+| Lane | Position | Patient | Stage | Tissue | Cells | Analyzed |
+|:----:|:--------:|---------|:-----:|--------|------:|:--------:|
+| L001 | A01 | WD112575 (CRC ctrl) | Ctrl | colon | 127,792 | ✅ |
+| | B01 | SNU-103 | **N** | stomach | 30,194 | ✅ |
+| | C01 | SNU-103 | **M** | stomach | 38,588 | ✅ |
+| | D01 | SNU-105 | **N** | stomach | 31,711 | ✅ |
+| | E01 | SNU-105 | **M** | stomach | 34,353 | ✅ |
+| | F01 | SNU-105 | **C** | stomach | 62,875 | ✅ |
+| | G01 | SNU-109 | **C** | stomach | 158,727 | ✅ |
+| | H01 | SNU-109 | X | stomach | 85,842 | ✅ |
+| L002 | A02 | WD112575 (CRC ctrl) | Ctrl | colon | 120,260 | |
+| | B02 | SNU-106 | N | stomach | 37,511 | |
+| | C02 | SNU-106 | C | stomach | 52,588 | |
+| | D02 | SNU-106 | N | stomach | 56,035 | |
+| | E02 | SNU-107 | N | stomach | 31,790 | |
+| | F02 | SNU-107 | M | stomach | 33,857 | |
+| | G02 | SNU-107 | C | stomach | 79,634 | |
+| | H02 | SNU-107 | C | stomach | 87,215 | |
+| L003 | A03 | WD112575 (CRC ctrl) | Ctrl | colon | 145,070 | |
+| | B03 | SNU-108 | M | stomach | 38,095 | |
+| | C03 | SNU-108 | C | stomach | 21,231 | |
+| | D03 | SNU-108 | M | stomach | 33,227 | |
+| | E03 | SNU-110 | C | stomach | 86,003 | |
+| | F03 | SNU-110 | X | stomach | 82,704 | |
+| | G03 | UTSW-4 | body | stomach | 45,583 | |
+| | H03 | UTSW-4 | fundus | stomach | 35,585 | |
+| L004 | A04 | WD112575 (CRC ctrl) | Ctrl | colon | 130,891 | |
+| | B04 | Hu13 | C | stomach | 119,211 | |
+| | C04 | Hu13 | M | stomach | 89,387 | |
+| | D04 | Hu13 | C | stomach | 169,683 | |
+| | E04 | Hu15 | X | stomach | 68,014 | |
+| | F04 | Hu15 | X | stomach | 78,831 | |
+| | G04 | Hu15 | X | stomach | 64,147 | |
+| | H04 | Hu15 | X | stomach | 32,334 | |
+
+### Summary by Disease Stage
+
+| Stage | Total Samples | Total Cells | Currently Analyzed |
+|-------|:-------------:|------------:|:------------------:|
+| **Normal (N)** | 6 | 187,241 | 2 |
+| **Metaplasia (M)** | 7 | 267,507 | 2 |
+| **Cancer (C)** | 10 | 857,167 | 2 |
+| Adjacent/Other (X) | 5 | 333,525 | 1 |
+| Colon Control | 4 | 524,013 | 1 |
+| **TOTAL** | **32** | **2,169,453** | **8** |
+
+### Matched Progression Series
+
+Patients with multiple disease stages enabling within-patient Normal → Metaplasia → Cancer comparison:
+
+| Patient | Normal | Metaplasia | Cancer | Status |
+|---------|:------:|:----------:|:------:|--------|
+| **SNU-105** | D01 | E01 | F01 | ✅ **Complete N→M→C (all analyzed)** |
+| SNU-107 | E02 | F02 | G02, H02 | Complete N→M→C |
+| SNU-103 | B01 | C01 | - | N→M only (analyzed) |
+| SNU-106 | B02, D02 | - | C02 | N→C (no M) |
+| SNU-108 | - | B03, D03 | C03 | M→C only |
+| Hu13 | - | C04 | B04, D04 | M→C only |
+
+**Key finding:** SNU-105 (D01→E01→F01) provides the only complete matched Normal→Metaplasia→Cancer progression series in the analyzed samples.
+
 ## Analysis Pipeline
 
 ### 1. Quality Control
