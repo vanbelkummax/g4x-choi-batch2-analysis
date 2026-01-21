@@ -64,13 +64,16 @@ QC_THRESHOLDS = {
     'min_median_genes_per_cell': 20,
     'max_pct_empty': 5.0,
     'min_pct_in_cells': 80.0,
+    # Protein QC thresholds
+    'min_median_protein_counts': 5.0,  # Minimum median protein counts
+    'min_pct_protein_positive': 80.0,  # At least 80% cells with some protein
 }
 
-# Batch effect thresholds
+# Batch effect thresholds (from implementation plan)
 BATCH_THRESHOLDS = {
     'max_silhouette_batch': 0.3,  # Low = good mixing
-    'min_lisi': 2.0,              # High = good mixing
-    'max_pc1_lane_variance': 0.20,  # <20% variance explained by lane
+    'min_lisi': 3.0,              # High = good mixing (plan says >3.0)
+    'max_pc1_lane_variance': 0.20,  # <20% variance explained by lane (R-squared)
 }
 
 
@@ -139,6 +142,19 @@ def apply_qc_thresholds(metrics: dict) -> tuple:
         reasons.append(f"High empty cells: {metrics['pct_zero_count_cells']:.1f}% > {QC_THRESHOLDS['max_pct_empty']}%")
         if status != 'FAIL':
             status = 'WARN'
+
+    # Protein QC thresholds
+    if 'median_protein_counts' in metrics:
+        if metrics['median_protein_counts'] < QC_THRESHOLDS['min_median_protein_counts']:
+            reasons.append(f"Low protein counts: {metrics['median_protein_counts']:.1f} < {QC_THRESHOLDS['min_median_protein_counts']}")
+            if status != 'FAIL':
+                status = 'WARN'
+
+    if 'pct_protein_positive' in metrics:
+        if metrics['pct_protein_positive'] < QC_THRESHOLDS['min_pct_protein_positive']:
+            reasons.append(f"Low protein+ cells: {metrics['pct_protein_positive']:.1f}% < {QC_THRESHOLDS['min_pct_protein_positive']}%")
+            if status != 'FAIL':
+                status = 'WARN'
 
     return status, reasons
 

@@ -85,14 +85,97 @@ CONFLICT_PAIRS = [
 ADMIX_THRESHOLD = 0.7  # Percentile for "high" expression
 ADMIX_CUTOFF = 0.3     # Flag cells above this score
 
+# Cell-level QC thresholds (applied before integration)
+CELL_QC_THRESHOLDS = {
+    'min_counts': 10,       # Minimum transcripts per cell
+    'min_genes': 5,         # Minimum genes detected per cell
+    'filter_admixed': True, # Remove admixed cells before clustering
+}
+
 
 # =============================================================================
 # Processing Functions
 # =============================================================================
 
+def apply_cell_level_qc(adata, thresholds: dict = CELL_QC_THRESHOLDS) -> ad.AnnData:
+    """
+    Apply cell-level QC filtering BEFORE integration.
+
+    Removes:
+    - Low count cells (< min_counts)
+    - Low gene cells (< min_genes)
+    - Admixed cells (if filter_admixed=True)
+
+    Returns filtered AnnData with QC metrics in uns.
+    """
+    n_start = adata.n_obs
+
+    # Compute QC metrics if not present
+    if 'n_counts' not in adata.obs:
+        adata.obs['n_counts'] = np.array(adata.X.sum(axis=1)).flatten()
+    if 'n_genes' not in adata.obs:
+        adata.obs['n_genes'] = np.array((adata.X > 0).sum(axis=1)).flatten()
+
+    # Build filter mask
+    keep_mask = np.ones(adata.n_obs, dtype=bool)
+
+    # Filter low counts
+    low_counts = adata.obs['n_counts'] < thresholds['min_counts']
+    n_low_counts = low_counts.sum()
+    keep_mask &= ~low_counts
+
+    # Filter low genes
+    low_genes = adata.obs['n_genes'] < thresholds['min_genes']
+    n_low_genes = low_genes.sum()
+    keep_mask &= ~low_genes
+
+    # Filter admixed (if computed and enabled)
+    n_admixed = 0
+    if thresholds.get('filter_admixed', False) and 'is_admixed' in adata.obs:
+        admixed = adata.obs['is_admixed'].astype(bool)
+        n_admixed = admixed.sum()
+        keep_mask &= ~admixed
+
+    # Apply filter
+    adata_filtered = adata[keep_mask].copy()
+
+    # Store QC info
+    n_removed = n_start - adata_filtered.n_obs
+    adata_filtered.uns['cell_qc'] = {
+        'n_start': n_start,
+        'n_filtered': adata_filtered.n_obs,
+        'n_removed_total': n_removed,
+        'n_low_counts': int(n_low_counts),
+        'n_low_genes': int(n_low_genes),
+        'n_admixed': int(n_admixed),
+        'pct_removed': (n_removed / n_start) * 100 if n_start > 0 else 0,
+    }
+
+    logger.debug(f"  Cell QC: {n_start:,} -> {adata_filtered.n_obs:,} ({n_removed:,} removed)")
+
+    return adata_filtered
+
+
 def compute_wnn_integration(adata, n_pcs_rna=30, n_pcs_prot=15, n_neighbors=20):
     """
-    Compute Weighted Nearest Neighbors integration of RNA and Protein.
+    Compute simplified Weighted Nearest Neighbors integration of RNA and Protein.
+
+    IMPORTANT: This is a simplified WNN implementation using variance-weighted
+    concatenation of PCA embeddings. It differs from true WNN (Seurat v4/muon)
+    which computes:
+    1. Modality-specific k-NN graphs
+    2. Per-cell weights based on local neighborhood consistency
+    3. Cell-specific modality importance
+
+    Our simplified approach:
+    - Global variance-derived weights (not per-cell)
+    - Direct weighted concatenation (not neighbor graph fusion)
+    - RNA typically dominates due to higher dimensionality
+
+    For production use, consider:
+    - muon.pp.neighbors(mdata, method='wnn') for true WNN
+    - MOFA+ for multi-modal factor analysis
+    - totalVI for joint probabilistic modeling
 
     Returns AnnData with X_wnn embedding in obsm.
     """
@@ -296,6 +379,25 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
     try:
         # Load
         adata = sc.read_h5ad(input_path)
+        n_cells_raw = adata.n_obs
+
+        # =====================================================================
+        # CELL-LEVEL QC (BEFORE integration)
+        # =====================================================================
+
+        # Step 1: Compute admixture scores on raw data (needed for QC filtering)
+        adata = compute_admixture_score(adata)
+        n_admixed_raw = int(adata.obs['is_admixed'].sum())
+
+        # Step 2: Apply cell-level QC filtering (removes low-count, low-gene, admixed)
+        adata = apply_cell_level_qc(adata, CELL_QC_THRESHOLDS)
+        n_cells_post_qc = adata.n_obs
+
+        logger.info(f"  {sample_id}: {n_cells_raw:,} -> {n_cells_post_qc:,} cells after QC")
+
+        # =====================================================================
+        # PREPROCESSING
+        # =====================================================================
 
         # Normalize RNA
         sc.pp.normalize_total(adata, target_sum=1e4)
@@ -307,11 +409,12 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
         # PCA
         sc.pp.pca(adata, n_comps=min(30, adata.n_vars - 1))
 
-        # WNN integration
-        adata = compute_wnn_integration(adata)
+        # =====================================================================
+        # INTEGRATION & CLUSTERING
+        # =====================================================================
 
-        # Admixture scoring
-        adata = compute_admixture_score(adata)
+        # WNN integration (simplified weighted concatenation - see documentation)
+        adata = compute_wnn_integration(adata)
 
         # Annotation
         adata = annotate_lineage(adata)
@@ -326,9 +429,11 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
         adata.write(output_path)
 
         # Metrics
+        result['n_cells_raw'] = n_cells_raw
         result['n_cells'] = adata.n_obs
-        result['n_admixed'] = int(adata.obs['is_admixed'].sum())
-        result['pct_admixed'] = result['n_admixed'] / result['n_cells'] * 100
+        result['n_cells_removed'] = n_cells_raw - adata.n_obs
+        result['pct_removed'] = (n_cells_raw - adata.n_obs) / n_cells_raw * 100
+        result['n_admixed_raw'] = n_admixed_raw
         result['n_clusters'] = adata.obs['leiden'].nunique()
 
         # Lineage distribution
@@ -360,6 +465,11 @@ def main():
     logger.info("=" * 60)
     logger.info("G4X Process QC-Passing Samples")
     logger.info("=" * 60)
+
+    if args.harmony:
+        logger.warning("NOTE: --harmony flag is for batch correction AFTER processing.")
+        logger.warning("Harmony will be applied when concatenating final h5ad files.")
+        logger.warning("Run this script first, then use harmony on the merged dataset.")
 
     # Load QC summary
     if not QC_SUMMARY.exists():
