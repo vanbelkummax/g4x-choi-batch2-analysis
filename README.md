@@ -36,6 +36,67 @@ Comprehensive multimodal spatial transcriptomics analysis of G4X data from the C
 | ATPase | Metabolic |
 | Isotype | Negative control |
 
+### RNA Panel Details (337 Genes + 50 Controls)
+
+The transcript panel consists of 241 genes from the standard IO panel plus 146 VUMC addon genes for gastric cancer research.
+
+#### Key Gene Categories
+
+| Category | Genes |
+|----------|-------|
+| **Gastric Markers** | CDX1, CDX2, MUC1, MUC2, MUC4, MUC5AC, MUC6, TFF1, TFF2, TFF3, PGC, GAST, ATP4A, GHRL, SST |
+| **Epithelial** | EPCAM, CDH1, CDH17, CLDN1, CLDN3, CLDN4, CLDN7, CLDN18, TACSTD2 |
+| **CAF Markers** | COL1A1, FAP, PDGFRA, PDGFRB, ACTA2, TAGLN, THY1, PDPN, FN1, POSTN, LUM, VCAN |
+| **T Cell** | CD3D, CD3E, CD4, CD8A, FOXP3, GZMA, GZMB, GZMH, GZMK, PRF1, IFNG, IL2RA, IL7R |
+| **Checkpoint** | PDCD1 (PD1), CD274 (PDL1), CTLA4, LAG3, HAVCR2 (TIM3), TIGIT |
+| **B/Plasma** | MS4A1, CD19, CD79A, IGHA1, IGHG1, IGHM, JCHAIN, SDC1 |
+| **Myeloid** | CD14, CD68, CD163, ITGAM, CSF1R, MRC1 |
+| **Cytokines** | CCL2, CCL3, CCL4, CCL5, CXCL9, CXCL10, CXCL11, CXCL13, IL1B, IL6, IL10, TGFB1, TNF |
+| **Stem/Progenitor** | LGR5, PROM1, OLFM4, SOX2, SOX9 |
+| **Oncogenes/DDR** | TP53, KRAS, EGFR, ERBB2, MET, APC, BRCA1, MLH1, MSH6 |
+
+### Per-Cell Metadata Available
+
+| Field | Description |
+|-------|-------------|
+| `cell_x`, `cell_y` | Spatial coordinates (µm) |
+| `nuclei_area` | Nuclear area (µm²) |
+| `[PROTEIN]_intensity_mean` | 17 protein marker intensities |
+| `n_genes_by_counts` | Number of genes detected |
+| `total_counts` | Total transcript counts |
+
+### Per-Sample Metadata Available
+
+| Field | Description |
+|-------|-------------|
+| `total_tissue_area_mm^2` | Total tissue area |
+| `number_cells` | Cell count |
+| `median_transcripts_per_cell` | RNA depth |
+| `median_unique_genes_per_cell` | Gene diversity |
+| `pct_transcripts_in_cells` | Assignment efficiency |
+| `[PROTEIN]_snr` | Signal-to-noise ratio per protein |
+
+### Data Limitations
+
+| What's Missing | Impact |
+|----------------|--------|
+| **No tumor region annotation** | Cannot distinguish tumor vs normal epithelium at cell level within a sample |
+| **No pathologist markup** | No gland/stroma/immune region boundaries drawn |
+| **No clinical metadata** | No patient age, sex, TNM stage, grade, or treatment history |
+| **Stage = ROI selection** | "C" (Cancer) suffix means ROI was selected from cancerous region, but individual cells are not labeled tumor/non-tumor |
+
+#### Inferring Tumor Phenotype
+
+Since we lack direct tumor annotations, we infer tumor-related phenotypes from marker expression:
+
+| Marker Pattern | Interpretation |
+|----------------|----------------|
+| PanCK+ CDX2+ MUC2+ | Intestinal metaplasia phenotype |
+| PanCK+ CDX2- MUC5AC+ | Gastric foveolar phenotype |
+| PanCK+ KI67-high | Proliferating epithelium (likely tumor) |
+| PanCK+ PDL1+ | Tumor with checkpoint expression |
+| aSMA+ PDGFRA+ | Cancer-associated fibroblast (CAF) |
+
 ### Sample Summary
 
 | Sample | Cells | Med. Trans/Cell | Med. Genes/Cell |
