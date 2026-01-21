@@ -1,0 +1,31 @@
+# QC Thresholds by Platform
+# =========================
+# Platform-specific defaults, can be overridden per-sample
+
+Visium:
+  min_genes: 200
+  max_genes: 8000
+  min_counts: 500
+  max_counts: 50000
+  max_pct_mt: 25.0
+  min_cells_per_gene: 3
+
+G4X:
+  min_genes: 50
+  max_genes: 500
+  min_counts: 100
+  max_counts: 10000
+  max_pct_mt: 25.0
+  min_cells_per_gene: 3
+
+VisiumHD:
+  # For 8um bins
+  min_genes: 100
+  max_genes: 6000
+  min_counts: 200
+  max_counts: 30000
+  max_pct_mt: 25.0
+  min_cells_per_gene: 10
+
+# Sample-specific overrides (optional)
+overrides: {}

@@ -1,0 +1,98 @@
+# Sample Registry for Spatial Biology Hackathon 2026
+# ================================================
+
+g4x:
+  A01:
+    platform: G4X
+    tissue: gastric
+    description: "Gastric cancer - N/M/C progression"
+    path: ~/data/hackathon/multimodal/A01
+    modalities:
+      - rna
+      - protein
+    expected_cells: 20000
+
+  B01:
+    platform: G4X
+    tissue: gastric
+    description: "Gastric cancer - N/M/C progression"
+    path: ~/data/hackathon/multimodal/B01
+    modalities:
+      - rna
+      - protein
+    expected_cells: 20000
+
+pdac:
+  # Non-responders
+  YP03A:
+    platform: Visium
+    tissue: PDAC
+    patient: YP03
+    timepoint: Pre
+    response: NR
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP03A
+
+  YP03C:
+    platform: Visium
+    tissue: PDAC
+    patient: YP03
+    timepoint: Post
+    response: NR
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP03C
+
+  YP04A:
+    platform: Visium
+    tissue: PDAC
+    patient: YP04
+    timepoint: Pre
+    response: NR
+    outcome: "Progressive Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP04A
+
+  YP04C:
+    platform: Visium
+    tissue: PDAC
+    patient: YP04
+    timepoint: Post
+    response: NR
+    outcome: "Progressive Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP04C
+
+  # Responders
+  YP12A:
+    platform: Visium
+    tissue: PDAC
+    patient: YP12
+    timepoint: Pre
+    response: R
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP12A
+
+  YP12C:
+    platform: Visium
+    tissue: PDAC
+    patient: YP12
+    timepoint: Post
+    response: R
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP12C
+
+  YP15A:
+    platform: Visium
+    tissue: PDAC
+    patient: YP15
+    timepoint: Pre
+    response: R
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP15A
+
+  YP15C:
+    platform: Visium
+    tissue: PDAC
+    patient: YP15
+    timepoint: Post
+    response: R
+    outcome: "Stable Disease"
+    path: ~/data/hackathon/PDAC.Visium/spaceranger.out/YP15C
