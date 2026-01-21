@@ -71,14 +71,41 @@ Raw Data:        /mnt/x/Choi_Batch_2_Tuesday/g4-028-083-FC1-L001_*/
 GitHub:          https://github.com/vanbelkummax/g4x-choi-batch2-analysis
 ```
 
+### PRIORITY: Validate Against Resolve Results
+
+Compare our pipeline output to Resolve Biosciences' official results for all 8 samples:
+
+```bash
+# Resolve summaries location:
+/mnt/x/Choi_Batch_2_Tuesday/g4-028-083-FC1-L001_*/summary_*.html
+/mnt/x/Choi_Batch_2_Tuesday/g4-028-083-FC1-L001_*/*/metrics/core_metrics.csv
+
+# Our results:
+~/spatial-hackathon-2026/results/g4x_choi_batch2/wnn_integrated/
+~/spatial-hackathon-2026/results/g4x_choi_batch2/annotated_v2/
+```
+
+**Validation checklist:**
+1. Cell counts: Compare total cells (before/after QC)
+2. Gene/transcript stats: Median genes/cell, transcripts/cell
+3. Clustering: Compare cluster assignments
+4. Cell types: Compare their annotation vs ours
+5. QC metrics: Validate our filtering is appropriate
+
+**Key files in Resolve output:**
+- `metrics/core_metrics.csv` - cell counts, QC stats
+- `single_cell_data/cell_metadata.csv.gz` - per-cell data
+- `single_cell_data/clustering_umap.csv.gz` - their clustering
+- `single_cell_data/dgex.csv.gz` - differential expression
+
 ### To Continue
 ```bash
 cd ~/spatial-hackathon-2026
 conda activate enact
 
-# Check outputs
-ls results/g4x_choi_batch2/*/
+# Create validation script
+python scripts/35_validate_vs_resolve.py --all
 
-# Next: Create progression analysis
-# Compare D01 (Normal) → E01 (Metaplasia) → F01 (Cancer)
+# Then progression analysis
+python scripts/34_progression_analysis.py
 ```
