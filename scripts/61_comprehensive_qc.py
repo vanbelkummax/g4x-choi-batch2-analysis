@@ -24,24 +24,37 @@ import os
 import sys
 
 
-def check_environment():
-    """Verify running in correct conda environment."""
+def check_environment(skip_check: bool = False):
+    """
+    Verify running in correct conda environment.
+
+    Parameters
+    ----------
+    skip_check : bool
+        If True, skip the environment check entirely (use --skip-env-check flag)
+    """
+    if skip_check or os.environ.get("G4X_SKIP_ENV_CHECK"):
+        return  # Allow override via flag or env var
+
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     env_name = os.path.basename(conda_prefix) if conda_prefix else ""
 
-    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
-    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
-    is_valid = any(name in env_name.lower() for name in valid_envs)
+    # Accept envs containing these patterns (e.g., 'enact-gpu', 'spatial-dev', 'scanpy3.10')
+    valid_patterns = ['enact', 'spatial', 'scanpy', 'single-cell', 'scverse']
+    is_valid = any(pattern in env_name.lower() for pattern in valid_patterns)
 
     if not is_valid:
         print("ERROR: This script requires a spatial analysis conda environment.")
         print(f"Current environment: {env_name or 'none'}")
-        print(f"\nAccepted environments: {', '.join(valid_envs)}")
-        print("Run: conda activate enact")
+        print(f"\nAccepted environment patterns: {', '.join(valid_patterns)}")
+        print("\nOptions:")
+        print("  1. Activate a valid env: conda activate enact")
+        print("  2. Skip check: --skip-env-check")
+        print("  3. Set env var: export G4X_SKIP_ENV_CHECK=1")
         sys.exit(1)
 
 
-check_environment()
+# Defer environment check until after argparse (see main())
 
 import scanpy as sc
 import anndata as ad
@@ -630,7 +643,12 @@ def main():
     parser = argparse.ArgumentParser(description='G4X Comprehensive QC Analysis')
     parser.add_argument('--resume', action='store_true',
                         help='Resume from checkpoint - skip already-processed samples')
+    parser.add_argument('--skip-env-check', action='store_true',
+                        help='Skip conda environment validation (use if running from equivalent env)')
     args = parser.parse_args()
+
+    # Environment check (deferred to allow --skip-env-check flag)
+    check_environment(skip_check=args.skip_env_check)
 
     logger.info("=" * 60)
     logger.info("G4X Comprehensive QC Analysis")

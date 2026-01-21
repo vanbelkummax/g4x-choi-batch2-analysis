@@ -21,20 +21,33 @@ import sys
 import shutil
 
 
-def check_environment():
-    """Verify running in correct conda environment."""
+def check_environment(skip_check: bool = False):
+    """
+    Verify running in correct conda environment.
+
+    Parameters
+    ----------
+    skip_check : bool
+        If True, skip the environment check entirely (use --skip-env-check flag)
+    """
+    if skip_check or os.environ.get("G4X_SKIP_ENV_CHECK"):
+        return  # Allow override via flag or env var
+
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     env_name = os.path.basename(conda_prefix) if conda_prefix else ""
 
-    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
-    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
-    is_valid = any(name in env_name.lower() for name in valid_envs)
+    # Accept envs containing these patterns (e.g., 'enact-gpu', 'spatial-dev', 'scanpy3.10')
+    valid_patterns = ['enact', 'spatial', 'scanpy', 'single-cell', 'scverse']
+    is_valid = any(pattern in env_name.lower() for pattern in valid_patterns)
 
     if not is_valid:
         print("ERROR: This script requires a spatial analysis conda environment.")
         print(f"Current environment: {env_name or 'none'}")
-        print(f"\nAccepted environments: {', '.join(valid_envs)}")
-        print("Run: conda activate enact")
+        print(f"\nAccepted environment patterns: {', '.join(valid_patterns)}")
+        print("\nOptions:")
+        print("  1. Activate a valid env: conda activate enact")
+        print("  2. Skip check: --skip-env-check")
+        print("  3. Set env var: export G4X_SKIP_ENV_CHECK=1")
         sys.exit(1)
 
 
@@ -42,12 +55,24 @@ def check_disk_space(path, required_gb=5.0):
     """
     Check available disk space and warn/abort if insufficient.
 
+    This implements a 3-tier disk space monitoring system:
+    - Tier 1 (Initial): 5 GB required at pipeline start (comfortable buffer)
+    - Tier 2 (Periodic): 2 GB required during processing (checked every 5 samples)
+    - Tier 3 (Critical): 1 GB minimum (hard abort to prevent data corruption)
+
+    The rationale:
+    - Each processed h5ad is ~10-50 MB depending on cell count
+    - Processing 32 samples could generate ~1-2 GB of output
+    - 5 GB initial ensures room for intermediate files and logs
+    - 2 GB periodic catches gradual exhaustion
+    - 1 GB critical prevents mid-write failures
+
     Parameters
     ----------
     path : str or Path
         Directory to check
     required_gb : float
-        Minimum required space in GB
+        Minimum required space in GB (default: 5.0 for initial check)
 
     Returns
     -------
@@ -58,13 +83,14 @@ def check_disk_space(path, required_gb=5.0):
     free_gb = free / (1024 ** 3)
     if free_gb < required_gb:
         print(f"WARNING: Low disk space! {free_gb:.1f} GB available, {required_gb:.1f} GB recommended")
+        # Tier 3: Critical threshold - abort to prevent data loss
         if free_gb < 1.0:
             print("ERROR: Critically low disk space (<1 GB). Aborting to prevent data loss.")
             sys.exit(1)
     return free_gb
 
 
-check_environment()
+# Defer environment check until after argparse (see main())
 
 import scanpy as sc
 import anndata as ad
@@ -517,7 +543,12 @@ def main():
     parser.add_argument('--parallel', type=int, default=4, help='Number of parallel workers')
     parser.add_argument('--keep-admixed', action='store_true',
                         help='Flag admixed cells but keep them (for sensitivity analysis)')
+    parser.add_argument('--skip-env-check', action='store_true',
+                        help='Skip conda environment validation (use if running from equivalent env)')
     args = parser.parse_args()
+
+    # Environment check (deferred to allow --skip-env-check flag)
+    check_environment(skip_check=args.skip_env_check)
 
     logger.info("=" * 60)
     logger.info("G4X Process QC-Passing Samples")

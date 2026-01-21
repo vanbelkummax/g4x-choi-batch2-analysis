@@ -17,19 +17,28 @@ import sys
 
 
 def check_environment():
-    """Verify running in correct conda environment."""
+    """
+    Verify running in correct conda environment.
+
+    Override with: export G4X_SKIP_ENV_CHECK=1
+    """
+    if os.environ.get("G4X_SKIP_ENV_CHECK"):
+        return  # Allow override via env var
+
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     env_name = os.path.basename(conda_prefix) if conda_prefix else ""
 
-    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
-    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
-    is_valid = any(name in env_name.lower() for name in valid_envs)
+    # Accept envs containing these patterns (e.g., 'enact-gpu', 'spatial-dev', 'scanpy3.10')
+    valid_patterns = ['enact', 'spatial', 'scanpy', 'single-cell', 'scverse']
+    is_valid = any(pattern in env_name.lower() for pattern in valid_patterns)
 
     if not is_valid:
         print("ERROR: This script requires a spatial analysis conda environment.")
         print(f"Current environment: {env_name or 'none'}")
-        print(f"\nAccepted environments: {', '.join(valid_envs)}")
-        print("Run: conda activate enact")
+        print(f"\nAccepted environment patterns: {', '.join(valid_patterns)}")
+        print("\nOptions:")
+        print("  1. Activate a valid env: conda activate enact")
+        print("  2. Set env var: export G4X_SKIP_ENV_CHECK=1")
         sys.exit(1)
 
 

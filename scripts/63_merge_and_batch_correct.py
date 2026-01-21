@@ -23,7 +23,8 @@ Arguments:
 
 Output:
     results/qc_all_samples/merged/
-    ├── merged_raw.h5ad           # Raw merged data
+    ├── merged_counts.h5ad        # True raw counts (before any normalization)
+    ├── merged_normalized.h5ad    # Normalized/log1p data (pre-correction baseline)
     ├── merged_corrected.h5ad     # Batch-corrected data (if applied)
     ├── batch_assessment.csv      # Pre/post correction metrics
     └── MERGE_REPORT.md           # Summary report
@@ -34,24 +35,38 @@ import sys
 import shutil
 
 
-def check_environment():
-    """Verify running in correct conda environment."""
+def check_environment(skip_check: bool = False):
+    """
+    Verify running in correct conda environment.
+
+    Parameters
+    ----------
+    skip_check : bool
+        If True, skip the environment check entirely (use --skip-env-check flag)
+    """
+    if skip_check or os.environ.get("G4X_SKIP_ENV_CHECK"):
+        return  # Allow override via flag or env var
+
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     env_name = os.path.basename(conda_prefix) if conda_prefix else ""
 
-    # Accept 'enact' or any env with 'enact' in the name (e.g., 'enact-dev')
-    valid_envs = ['enact', 'spatial', 'scanpy']  # Allow equivalent envs
-    is_valid = any(name in env_name.lower() for name in valid_envs)
+    # Accept envs containing these patterns (e.g., 'enact-gpu', 'spatial-dev', 'scanpy3.10')
+    # Using substring matching to be more flexible
+    valid_patterns = ['enact', 'spatial', 'scanpy', 'single-cell', 'scverse']
+    is_valid = any(pattern in env_name.lower() for pattern in valid_patterns)
 
     if not is_valid:
         print("ERROR: This script requires a spatial analysis conda environment.")
         print(f"Current environment: {env_name or 'none'}")
-        print(f"\nAccepted environments: {', '.join(valid_envs)}")
-        print("Run: conda activate enact")
+        print(f"\nAccepted environment patterns: {', '.join(valid_patterns)}")
+        print("\nOptions:")
+        print("  1. Activate a valid env: conda activate enact")
+        print("  2. Skip check: --skip-env-check")
+        print("  3. Set env var: export G4X_SKIP_ENV_CHECK=1")
         sys.exit(1)
 
 
-check_environment()
+# Defer environment check until after argparse (see main())
 
 import scanpy as sc
 import anndata as ad
@@ -224,13 +239,21 @@ def apply_harmony(adata: ad.AnnData, batch_key: str = 'lane') -> ad.AnnData:
     return adata
 
 
-def apply_scvi(adata: ad.AnnData, batch_key: str = 'lane') -> ad.AnnData:
+def apply_scvi(adata: ad.AnnData, batch_key: str = 'lane') -> tuple[ad.AnnData, str]:
     """
     Apply scVI batch correction.
 
     scVI learns a latent representation that removes batch effects while
     preserving biological variation. More sophisticated than Harmony but
     requires more compute.
+
+    IMPORTANT: scVI requires raw counts. This function expects raw counts to be
+    stored in adata.layers['counts']. If not present, falls back to Harmony.
+
+    Returns
+    -------
+    tuple[AnnData, str]
+        (corrected adata, method_used) where method_used is 'scvi' or 'harmony_fallback'
     """
     logger.info("Applying scVI batch correction...")
 
@@ -238,21 +261,36 @@ def apply_scvi(adata: ad.AnnData, batch_key: str = 'lane') -> ad.AnnData:
         import scvi
     except ImportError:
         logger.error("scvi-tools not installed. Run: pip install scvi-tools")
-        logger.info("Falling back to Harmony...")
-        return apply_harmony(adata, batch_key)
+        logger.warning("FALLBACK: Using Harmony instead of scVI")
+        result = apply_harmony(adata, batch_key)
+        return result, 'harmony_fallback_import'
 
-    # Setup anndata for scVI
+    # Verify raw counts are available
+    if 'counts' not in adata.layers:
+        logger.error("Raw counts not found in adata.layers['counts']")
+        logger.error("scVI requires raw counts, not normalized data!")
+        logger.warning("FALLBACK: Using Harmony instead of scVI")
+        result = apply_harmony(adata, batch_key)
+        return result, 'harmony_fallback_no_counts'
+
+    # Create a copy with raw counts in X for scVI
+    logger.info("  Preparing data with raw counts for scVI...")
+    adata_scvi = adata.copy()
+    adata_scvi.X = adata_scvi.layers['counts'].copy()
+
+    # Setup anndata for scVI (must be raw counts)
     scvi.model.SCVI.setup_anndata(
-        adata,
+        adata_scvi,
         batch_key=batch_key,
+        layer=None,  # Use X directly (which is now raw counts)
     )
 
     # Train model
     logger.info("  Training scVI model (this may take a while)...")
-    model = scvi.model.SCVI(adata, n_latent=30, n_layers=2)
+    model = scvi.model.SCVI(adata_scvi, n_latent=30, n_layers=2)
     model.train(max_epochs=100, early_stopping=True)
 
-    # Get latent representation
+    # Get latent representation and transfer back to original adata
     adata.obsm['X_scVI'] = model.get_latent_representation()
 
     # Recompute neighbors and UMAP on scVI embedding
@@ -263,10 +301,12 @@ def apply_scvi(adata: ad.AnnData, batch_key: str = 'lane') -> ad.AnnData:
     adata.uns['batch_correction'] = {
         'method': 'scvi',
         'batch_key': batch_key,
+        'n_latent': 30,
+        'n_layers': 2,
     }
 
     logger.info("  scVI correction complete")
-    return adata
+    return adata, 'scvi'
 
 
 def apply_muon_wnn(adata: ad.AnnData) -> ad.AnnData:
@@ -396,15 +436,16 @@ No batch correction applied (metrics passed thresholds or --method none specifie
 
     report += """## Output Files
 
-- `merged_raw.h5ad`: Raw merged data (no batch correction)
+- `merged_counts.h5ad`: **True raw counts** (before ANY normalization) - use for scVI
+- `merged_normalized.h5ad`: Normalized/log1p data (pre-correction baseline)
 - `merged_corrected.h5ad`: Batch-corrected data (if applied)
 - `batch_assessment.csv`: Pre/post correction metrics
 
 ## Next Steps
 
 1. Review batch effect visualizations in `figures/batch_effects/`
-2. Proceed to downstream analyses with corrected data
-3. Consider running with `--method scvi` for more sophisticated correction if needed
+2. Proceed to downstream analyses with `merged_corrected.h5ad`
+3. For scVI: raw counts are available in `merged_counts.h5ad` or `adata.layers['counts']`
 """
 
     with open(save_path, 'w') as f:
@@ -426,7 +467,12 @@ def main():
                         help='Use muon for true WNN integration')
     parser.add_argument('--batch-key', type=str, default='lane',
                         help='Column to use for batch correction (default: lane)')
+    parser.add_argument('--skip-env-check', action='store_true',
+                        help='Skip conda environment validation (use if running from equivalent env)')
     args = parser.parse_args()
+
+    # Environment check (deferred to allow --skip-env-check flag)
+    check_environment(skip_check=args.skip_env_check)
 
     logger.info("=" * 60)
     logger.info("G4X Merge and Batch Correction")
@@ -458,11 +504,31 @@ def main():
 
     logger.info(f"Merged: {n_cells:,} cells from {n_samples} samples")
 
-    # Normalize (if not already)
-    if adata_merged.X.max() > 100:  # Likely raw counts
+    # ==========================================================================
+    # CRITICAL: Save true raw counts BEFORE any normalization
+    # This ensures:
+    #   1. merged_counts.h5ad contains exactly what was merged (no transforms)
+    #   2. scVI can access raw counts via adata.layers['counts']
+    # ==========================================================================
+    is_raw_counts = adata_merged.X.max() > 100  # Likely raw counts if max > 100
+
+    if is_raw_counts:
+        # Store raw counts in layers before normalization (required for scVI)
+        logger.info("Storing raw counts in .layers['counts'] for scVI compatibility...")
+        adata_merged.layers['counts'] = adata_merged.X.copy()
+
+        # Save TRUE raw counts file (before any transformation)
+        logger.info("Saving true raw counts (merged_counts.h5ad)...")
+        adata_merged.write(OUTPUT_DIR / "merged_counts.h5ad")
+
+        # Now normalize for visualization and Harmony
         logger.info("Normalizing merged data...")
         sc.pp.normalize_total(adata_merged, target_sum=1e4)
         sc.pp.log1p(adata_merged)
+    else:
+        logger.warning("Data appears already normalized (max value <= 100)")
+        logger.warning("Skipping raw counts save - no merged_counts.h5ad will be created")
+        logger.warning("scVI will fall back to Harmony if requested")
 
     # Variable genes and PCA
     # For targeted panels (<2000 genes), skip HVG selection - use all genes
@@ -481,9 +547,9 @@ def main():
     sc.pp.neighbors(adata_merged)
     sc.tl.umap(adata_merged)
 
-    # Save raw merged
-    logger.info(f"Saving raw merged data...")
-    adata_merged.write(OUTPUT_DIR / "merged_raw.h5ad")
+    # Save normalized pre-correction baseline
+    logger.info("Saving normalized data (merged_normalized.h5ad)...")
+    adata_merged.write(OUTPUT_DIR / "merged_normalized.h5ad")
 
     # Assess batch effects
     pre_metrics = assess_batch_effects(adata_merged, args.batch_key)
@@ -491,14 +557,26 @@ def main():
     # Apply batch correction if needed
     post_metrics = None
     method_applied = 'none'
+    fallback_reason = None  # Track if scVI fell back to Harmony
 
     if args.method != 'none' and (pre_metrics['recommendation'] == 'CORRECT' or args.force):
         if args.method == 'harmony':
             adata_merged = apply_harmony(adata_merged, args.batch_key)
             method_applied = 'harmony'
         elif args.method == 'scvi':
-            adata_merged = apply_scvi(adata_merged, args.batch_key)
-            method_applied = 'scvi'
+            # apply_scvi returns (adata, method_used) to track fallbacks
+            adata_merged, actual_method = apply_scvi(adata_merged, args.batch_key)
+            method_applied = actual_method
+
+            # Log fallback explicitly
+            if actual_method.startswith('harmony_fallback'):
+                fallback_reason = actual_method.replace('harmony_fallback_', '')
+                logger.warning(f"=" * 40)
+                logger.warning(f"scVI FALLBACK OCCURRED")
+                logger.warning(f"Reason: {fallback_reason}")
+                logger.warning(f"Method used: Harmony (instead of scVI)")
+                logger.warning(f"=" * 40)
+                method_applied = f'harmony (scVI fallback: {fallback_reason})'
 
         # Re-assess after correction
         post_metrics = assess_batch_effects(adata_merged, args.batch_key)
