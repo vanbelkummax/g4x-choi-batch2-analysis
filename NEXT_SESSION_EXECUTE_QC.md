@@ -232,7 +232,9 @@ python scripts/63_merge_and_batch_correct.py 2>&1 | tee logs/63_merge.log
 | Script 61 | `cat results/qc_all_samples/QC_REPORT.md` → Review batch effects |
 | Script 62 | `ls results/qc_all_samples/final_processed/*.h5ad | wc -l` → 31 files |
 | Script 63 | `cat results/qc_all_samples/merged/MERGE_REPORT.md` → Review batch metrics |
-| Script 63 | `ls results/qc_all_samples/merged/merged_corrected.h5ad` → Final merged file |
+| Script 63 | `ls results/qc_all_samples/merged/merged_counts.h5ad` → True raw counts |
+| Script 63 | `ls results/qc_all_samples/merged/merged_normalized.h5ad` → Pre-correction baseline |
+| Script 63 | `ls results/qc_all_samples/merged/merged_corrected.h5ad` → Final batch-corrected file |
 
 ---
 
@@ -286,6 +288,32 @@ cat ~/g4x-choi-batch2-analysis/results/qc_all_samples/final_processed/processing
 conda activate enact
 # Key packages: scanpy 1.10.3, squidpy 1.6.1, anndata 0.10.9
 ```
+
+### Environment Check Override (Added 2026-01-21)
+
+The scripts validate the conda environment before running. If you're using an equivalent environment with a non-standard name (e.g., `enact-gpu`, `spatial-v2`), you can bypass the check:
+
+**Option 1: Command-line flag** (scripts 61-63)
+```bash
+python scripts/61_comprehensive_qc.py --skip-env-check
+python scripts/62_process_qc_passing.py --skip-env-check
+python scripts/63_merge_and_batch_correct.py --skip-env-check
+```
+
+**Option 2: Environment variable** (all scripts)
+```bash
+export G4X_SKIP_ENV_CHECK=1
+python scripts/60_load_all_samples.py
+python scripts/61_comprehensive_qc.py
+# etc.
+```
+
+**Accepted environment patterns** (no override needed):
+- `enact`, `enact-gpu`, `enact-dev`
+- `spatial`, `spatial-v2`
+- `scanpy`, `scanpy3.10`
+- `single-cell`
+- `scverse`
 
 ---
 
