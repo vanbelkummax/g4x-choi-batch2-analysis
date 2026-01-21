@@ -5,11 +5,28 @@ G4X Full Dataset Loading
 Load all 32 samples across 4 lanes into individual AnnData objects.
 
 Usage:
+    conda activate enact
     python scripts/60_load_all_samples.py
 
 Output:
     results/qc_all_samples/raw/{sample}_raw.h5ad (32 files)
 """
+
+import os
+import sys
+
+
+def check_environment():
+    """Verify running in correct conda environment."""
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if "enact" not in conda_prefix:
+        print("ERROR: This script requires the 'enact' conda environment.")
+        print(f"Current environment: {conda_prefix or 'none'}")
+        print("\nRun: conda activate enact")
+        sys.exit(1)
+
+
+check_environment()
 
 import scanpy as sc
 import anndata as ad

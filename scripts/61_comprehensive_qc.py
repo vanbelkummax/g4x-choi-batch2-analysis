@@ -5,7 +5,11 @@ G4X Comprehensive Quality Control
 Multi-level QC analysis with batch effect assessment.
 
 Usage:
-    python scripts/61_comprehensive_qc.py
+    conda activate enact
+    python scripts/61_comprehensive_qc.py [--resume]
+
+Arguments:
+    --resume    Skip already-processed samples and pick up where left off
 
 Output:
     results/qc_all_samples/
@@ -15,6 +19,22 @@ Output:
     ├── sample_qc_summary.csv    # Pass/fail + reasons
     └── QC_REPORT.md             # Comprehensive report
 """
+
+import os
+import sys
+
+
+def check_environment():
+    """Verify running in correct conda environment."""
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if "enact" not in conda_prefix:
+        print("ERROR: This script requires the 'enact' conda environment.")
+        print(f"Current environment: {conda_prefix or 'none'}")
+        print("\nRun: conda activate enact")
+        sys.exit(1)
+
+
+check_environment()
 
 import scanpy as sc
 import anndata as ad
@@ -28,6 +48,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 from tqdm import tqdm
+import argparse
 import logging
 import warnings
 import gc
@@ -58,12 +79,13 @@ for d in [FIG_DIR_SAMPLE, FIG_DIR_CROSS, FIG_DIR_BATCH]:
 RESOLVE_METRICS_PATH = Path("/mnt/x/Choi_Batch_2_Tuesday/choi_preGC_b2_core_metrics.csv")
 
 # QC thresholds (evidence-based)
+# Note: min_pct_in_cells removed - metric not available in feature_matrix.h5
+# Capture efficiency is validated via Resolve baseline comparison instead
 QC_THRESHOLDS = {
     'min_cells': 20_000,
     'min_median_transcripts_per_cell': 30,
     'min_median_genes_per_cell': 20,
     'max_pct_empty': 5.0,
-    'min_pct_in_cells': 80.0,
     # Protein QC thresholds
     'min_median_protein_counts': 5.0,  # Minimum median protein counts
     'min_pct_protein_positive': 80.0,  # At least 80% cells with some protein
@@ -361,7 +383,15 @@ def plot_cross_sample_comparison(all_metrics: pd.DataFrame, save_dir: Path):
 
 
 def plot_batch_effects(adata_combined: ad.AnnData, save_dir: Path):
-    """Generate batch effect assessment plots."""
+    """
+    Generate batch effect assessment plots.
+
+    Returns
+    -------
+    pd.DataFrame or None
+        PC lane variance statistics (R², F-stat) for use in QC report
+    """
+    pc_stats = None  # Will be set if PCA available
 
     # 1. UMAP colored by lane vs stage
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -415,9 +445,9 @@ def plot_batch_effects(adata_combined: ad.AnnData, save_dir: Path):
         plt.savefig(save_dir / "lisi_by_lane.png", dpi=150)
         plt.close()
 
-    # 3. PCA variance by lane
+    # 3. PCA variance by lane (using R-squared for interpretability)
     if 'X_pca' in adata_combined.obsm:
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
         # Compute variance explained by lane for each PC
         pc_data = pd.DataFrame(
@@ -426,25 +456,58 @@ def plot_batch_effects(adata_combined: ad.AnnData, save_dir: Path):
         )
         pc_data['lane'] = adata_combined.obs['lane'].values
 
-        # ANOVA F-statistic for each PC
-        f_stats = []
+        # Compute R-squared (eta-squared) for each PC
+        # R² = SS_between / SS_total = 1 - SS_within / SS_total
+        lane_stats = []
         for pc in [f'PC{i+1}' for i in range(10)]:
             groups = [pc_data[pc_data['lane'] == l][pc].values
                       for l in pc_data['lane'].unique()]
-            f, p = stats.f_oneway(*groups)
-            f_stats.append({'PC': pc, 'F_statistic': f, 'p_value': p})
 
-        f_df = pd.DataFrame(f_stats)
-        ax.bar(f_df['PC'], f_df['F_statistic'])
-        ax.axhline(10, color='red', linestyle='--', label='Concern threshold')
+            # F-statistic
+            f, p = stats.f_oneway(*groups)
+
+            # Compute eta-squared (R²) - proportion of variance explained by lane
+            grand_mean = pc_data[pc].mean()
+            ss_total = ((pc_data[pc] - grand_mean) ** 2).sum()
+            ss_between = sum(len(g) * (g.mean() - grand_mean) ** 2 for g in groups)
+            r_squared = ss_between / ss_total if ss_total > 0 else 0
+
+            lane_stats.append({
+                'PC': pc,
+                'F_statistic': f,
+                'p_value': p,
+                'R_squared': r_squared,
+                'pct_variance': r_squared * 100
+            })
+
+        stats_df = pd.DataFrame(lane_stats)
+
+        # Plot 1: R-squared by PC (primary metric)
+        ax = axes[0]
+        colors = ['red' if r > BATCH_THRESHOLDS['max_pc1_lane_variance'] else 'steelblue'
+                  for r in stats_df['R_squared']]
+        ax.bar(stats_df['PC'], stats_df['pct_variance'], color=colors)
+        ax.axhline(BATCH_THRESHOLDS['max_pc1_lane_variance'] * 100, color='red',
+                   linestyle='--', label=f"Threshold: {BATCH_THRESHOLDS['max_pc1_lane_variance']*100:.0f}%")
+        ax.set_xlabel('Principal Component')
+        ax.set_ylabel('Variance Explained by Lane (%)')
+        ax.set_title('Lane Effect on PCs (R² > 20% = CONCERN)')
+        ax.legend()
+
+        # Plot 2: F-statistic (secondary metric for significance)
+        ax = axes[1]
+        ax.bar(stats_df['PC'], stats_df['F_statistic'], color='steelblue')
         ax.set_xlabel('Principal Component')
         ax.set_ylabel('F-statistic (Lane)')
-        ax.set_title('Lane Effect on Principal Components')
-        ax.legend()
+        ax.set_title('ANOVA F-statistic (higher = more lane separation)')
 
         plt.tight_layout()
         plt.savefig(save_dir / "pca_lane_variance.png", dpi=150)
         plt.close()
+
+        pc_stats = stats_df  # Store for return
+
+    return pc_stats
 
 
 def generate_qc_report(all_metrics: pd.DataFrame, batch_metrics: dict, save_path: Path):
@@ -505,6 +568,11 @@ def generate_qc_report(all_metrics: pd.DataFrame, batch_metrics: dict, save_path
     else:
         report += "No warnings.\n"
 
+    # PC1 lane variance assessment
+    pc1_r2 = batch_metrics.get('pc1_lane_r_squared', 0)
+    pc1_pct = batch_metrics.get('pc1_lane_pct', 0)
+    pc1_status = 'PASS' if pc1_r2 < BATCH_THRESHOLDS['max_pc1_lane_variance'] else 'CONCERN'
+
     report += f"""
 
 ## Batch Effect Assessment
@@ -513,6 +581,7 @@ def generate_qc_report(all_metrics: pd.DataFrame, batch_metrics: dict, save_path
 |--------|-------|-----------|--------|
 | Mean LISI (lane) | {batch_metrics.get('mean_lisi', 0):.2f} | > {BATCH_THRESHOLDS['min_lisi']} | {'PASS' if batch_metrics.get('mean_lisi', 0) > BATCH_THRESHOLDS['min_lisi'] else 'CONCERN'} |
 | Silhouette (lane) | {batch_metrics.get('silhouette_lane', 0):.3f} | < {BATCH_THRESHOLDS['max_silhouette_batch']} | {'PASS' if batch_metrics.get('silhouette_lane', 1) < BATCH_THRESHOLDS['max_silhouette_batch'] else 'CONCERN'} |
+| PC1 Lane Variance (R²) | {pc1_pct:.1f}% | < {BATCH_THRESHOLDS['max_pc1_lane_variance']*100:.0f}% | {pc1_status} |
 
 ## Lane Statistics
 
@@ -551,9 +620,17 @@ def generate_qc_report(all_metrics: pd.DataFrame, batch_metrics: dict, save_path
 
 def main():
     """Run comprehensive QC analysis."""
+    parser = argparse.ArgumentParser(description='G4X Comprehensive QC Analysis')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from checkpoint - skip already-processed samples')
+    args = parser.parse_args()
+
     logger.info("=" * 60)
     logger.info("G4X Comprehensive QC Analysis")
     logger.info("=" * 60)
+
+    if args.resume:
+        logger.info("RESUME MODE: Skipping already-processed samples")
 
     # Load manifest
     manifest_path = INPUT_DIR / "loading_manifest.csv"
@@ -565,6 +642,16 @@ def main():
     manifest = pd.read_csv(manifest_path)
     logger.info(f"Found {len(manifest)} samples in manifest")
 
+    # Resume support: load existing metrics if available
+    existing_metrics = {}
+    existing_metrics_path = OUTPUT_DIR / "sample_qc_summary.csv"
+    if args.resume and existing_metrics_path.exists():
+        existing_df = pd.read_csv(existing_metrics_path)
+        existing_metrics = {row['sample_id']: row.to_dict()
+                           for _, row in existing_df.iterrows()
+                           if pd.notna(row.get('qc_status')) and row.get('qc_status') != 'ERROR'}
+        logger.info(f"Resuming: Found {len(existing_metrics)} previously processed samples")
+
     # Load Resolve baseline for validation
     resolve_baseline = None
     if RESOLVE_METRICS_PATH.exists():
@@ -574,10 +661,25 @@ def main():
     # Process each sample
     all_metrics = []
     combined_data = []
+    skipped = 0
 
     for _, row in tqdm(manifest.iterrows(), total=len(manifest), desc="Processing samples"):
         sample_id = row['sample_id']
         h5ad_path = Path(row['path'])
+
+        # Resume support: skip already-processed samples
+        if sample_id in existing_metrics:
+            all_metrics.append(existing_metrics[sample_id])
+            skipped += 1
+            # Still need to load for combined analysis
+            try:
+                adata = sc.read_h5ad(h5ad_path)
+                if adata.n_obs > 10000:
+                    sc.pp.subsample(adata, n_obs=10000)
+                combined_data.append(adata)
+            except:
+                pass
+            continue
 
         try:
             # Load sample
@@ -660,8 +762,11 @@ def main():
             logger.warning(f"Could not compute silhouette: {e}")
             batch_metrics['silhouette_lane'] = np.nan
 
-        # Batch effect plots
-        plot_batch_effects(adata_combined, FIG_DIR_BATCH)
+        # Batch effect plots (returns PC lane variance stats)
+        pc_lane_stats = plot_batch_effects(adata_combined, FIG_DIR_BATCH)
+        if pc_lane_stats is not None and len(pc_lane_stats) > 0:
+            batch_metrics['pc1_lane_r_squared'] = pc_lane_stats.iloc[0]['R_squared']
+            batch_metrics['pc1_lane_pct'] = pc_lane_stats.iloc[0]['pct_variance']
 
         del adata_combined
         gc.collect()
@@ -673,6 +778,8 @@ def main():
     # Summary
     logger.info("=" * 60)
     logger.info("QC Analysis Complete")
+    if skipped > 0:
+        logger.info(f"  Skipped (resume): {skipped}")
     logger.info(f"  PASS: {(metrics_df['qc_status'] == 'PASS').sum()}")
     logger.info(f"  WARN: {(metrics_df['qc_status'] == 'WARN').sum()}")
     logger.info(f"  FAIL: {(metrics_df['qc_status'] == 'FAIL').sum()}")

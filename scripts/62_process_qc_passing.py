@@ -5,15 +5,59 @@ G4X Process QC-Passing Samples
 Run full WNN + annotation pipeline on samples that passed QC.
 
 Usage:
-    python scripts/62_process_qc_passing.py [--harmony] [--parallel N]
+    conda activate enact
+    python scripts/62_process_qc_passing.py [--parallel N] [--keep-admixed]
 
 Arguments:
-    --harmony   Apply Harmony batch correction by lane
-    --parallel  Number of parallel workers (default: 4)
+    --parallel      Number of parallel workers (default: 4)
+    --keep-admixed  Flag admixed cells but don't remove them (for sensitivity analysis)
 
 Output:
     results/qc_all_samples/final_processed/{sample}_final.h5ad
 """
+
+import os
+import sys
+import shutil
+
+
+def check_environment():
+    """Verify running in correct conda environment."""
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if "enact" not in conda_prefix:
+        print("ERROR: This script requires the 'enact' conda environment.")
+        print(f"Current environment: {conda_prefix or 'none'}")
+        print("\nRun: conda activate enact")
+        sys.exit(1)
+
+
+def check_disk_space(path, required_gb=5.0):
+    """
+    Check available disk space and warn/abort if insufficient.
+
+    Parameters
+    ----------
+    path : str or Path
+        Directory to check
+    required_gb : float
+        Minimum required space in GB
+
+    Returns
+    -------
+    float
+        Available space in GB
+    """
+    total, used, free = shutil.disk_usage(path)
+    free_gb = free / (1024 ** 3)
+    if free_gb < required_gb:
+        print(f"WARNING: Low disk space! {free_gb:.1f} GB available, {required_gb:.1f} GB recommended")
+        if free_gb < 1.0:
+            print("ERROR: Critically low disk space (<1 GB). Aborting to prevent data loss.")
+            sys.exit(1)
+    return free_gb
+
+
+check_environment()
 
 import scanpy as sc
 import anndata as ad
@@ -86,10 +130,11 @@ ADMIX_THRESHOLD = 0.7  # Percentile for "high" expression
 ADMIX_CUTOFF = 0.3     # Flag cells above this score
 
 # Cell-level QC thresholds (applied before integration)
+# Note: filter_admixed can be overridden by --keep-admixed CLI flag
 CELL_QC_THRESHOLDS = {
     'min_counts': 10,       # Minimum transcripts per cell
     'min_genes': 5,         # Minimum genes detected per cell
-    'filter_admixed': True, # Remove admixed cells before clustering
+    'filter_admixed': True, # Remove admixed cells (set False via --keep-admixed for sensitivity)
 }
 
 
@@ -354,7 +399,7 @@ def annotate_cell_types(adata):
     return adata
 
 
-def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
+def process_sample(sample_info: dict, keep_admixed: bool = False) -> dict:
     """
     Process a single sample through the full pipeline.
 
@@ -362,8 +407,8 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
     ----------
     sample_info : dict
         Contains 'sample_id' and 'path' keys
-    apply_harmony : bool
-        Whether to apply Harmony batch correction
+    keep_admixed : bool
+        If True, flag admixed cells but don't remove them (for sensitivity analysis)
 
     Returns
     -------
@@ -390,7 +435,11 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
         n_admixed_raw = int(adata.obs['is_admixed'].sum())
 
         # Step 2: Apply cell-level QC filtering (removes low-count, low-gene, admixed)
-        adata = apply_cell_level_qc(adata, CELL_QC_THRESHOLDS)
+        # If keep_admixed=True, cells are flagged but not removed (for sensitivity analysis)
+        qc_thresholds = CELL_QC_THRESHOLDS.copy()
+        if keep_admixed:
+            qc_thresholds['filter_admixed'] = False
+        adata = apply_cell_level_qc(adata, qc_thresholds)
         n_cells_post_qc = adata.n_obs
 
         logger.info(f"  {sample_id}: {n_cells_raw:,} -> {n_cells_post_qc:,} cells after QC")
@@ -458,18 +507,18 @@ def process_sample(sample_info: dict, apply_harmony: bool = False) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description='Process QC-passing G4X samples')
-    parser.add_argument('--harmony', action='store_true', help='Apply Harmony batch correction')
     parser.add_argument('--parallel', type=int, default=4, help='Number of parallel workers')
+    parser.add_argument('--keep-admixed', action='store_true',
+                        help='Flag admixed cells but keep them (for sensitivity analysis)')
     args = parser.parse_args()
 
     logger.info("=" * 60)
     logger.info("G4X Process QC-Passing Samples")
     logger.info("=" * 60)
 
-    if args.harmony:
-        logger.warning("NOTE: --harmony flag is for batch correction AFTER processing.")
-        logger.warning("Harmony will be applied when concatenating final h5ad files.")
-        logger.warning("Run this script first, then use harmony on the merged dataset.")
+    if args.keep_admixed:
+        logger.info("NOTE: --keep-admixed enabled - admixed cells flagged but NOT removed")
+        logger.info("Use this for sensitivity analysis; default behavior filters admixed cells")
 
     # Load QC summary
     if not QC_SUMMARY.exists():
@@ -498,14 +547,19 @@ def main():
 
     logger.info(f"Processing {len(samples_to_process)} samples...")
 
+    # Initial disk space check
+    free_gb = check_disk_space(OUTPUT_DIR, required_gb=5.0)
+    logger.info(f"Disk space available: {free_gb:.1f} GB")
+
     # Process samples
     results = []
+    disk_check_interval = 5  # Check disk every N samples
 
     if args.parallel > 1:
         # Parallel processing
         with ProcessPoolExecutor(max_workers=args.parallel) as executor:
             futures = {
-                executor.submit(process_sample, s, args.harmony): s['sample_id']
+                executor.submit(process_sample, s, args.keep_admixed): s['sample_id']
                 for s in samples_to_process
             }
 
@@ -520,8 +574,13 @@ def main():
                     logger.error(f"  {sample_id}: FAILED - {e}")
     else:
         # Sequential processing
-        for sample_info in tqdm(samples_to_process, desc="Processing"):
-            result = process_sample(sample_info, args.harmony)
+        for i, sample_info in enumerate(tqdm(samples_to_process, desc="Processing")):
+            # Periodic disk space check
+            if i > 0 and i % disk_check_interval == 0:
+                free_gb = check_disk_space(OUTPUT_DIR, required_gb=2.0)
+                logger.debug(f"Disk check: {free_gb:.1f} GB free")
+
+            result = process_sample(sample_info, args.keep_admixed)
             results.append(result)
             logger.info(f"  {result['sample_id']}: {result['status']}")
 
