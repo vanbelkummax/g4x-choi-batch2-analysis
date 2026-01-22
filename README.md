@@ -2,6 +2,12 @@
 
 Comprehensive multimodal spatial transcriptomics analysis of G4X data from the Choi Lab (Batch 2).
 
+## Sample Overview (29 QC-Passing Samples)
+
+![Sample Panels Overview](docs/images/fig7_sample_panels_overview.jpg)
+
+*PCA Deep Dive: Each panel shows H&E thumbnail, spatial cell distribution colored by cell type, cell type composition pie chart, RNA PCA, WNN embedding, and sample metadata. 1.83M total cells across normal → metaplasia → cancer progression.*
+
 ## Dataset Overview
 
 | Metric | Value |
