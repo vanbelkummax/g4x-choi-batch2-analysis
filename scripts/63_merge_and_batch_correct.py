@@ -80,6 +80,7 @@ import argparse
 import logging
 import warnings
 import gc
+from typing import Optional
 
 warnings.filterwarnings('ignore')
 
@@ -221,9 +222,14 @@ def apply_harmony(adata: ad.AnnData, batch_key: str = 'lane') -> ad.AnnData:
         max_iter_harmony=20
     )
 
-    # Store corrected embedding
-    adata.obsm['X_pca'] = ho.Z_corr.T
-    adata.obsm['X_pca_harmony'] = ho.Z_corr.T
+    # Store corrected embedding (handle both numpy and PyTorch tensor outputs)
+    Z_corr = ho.Z_corr
+    if hasattr(Z_corr, 'cpu'):
+        # PyTorch tensor - move to CPU and convert to numpy
+        Z_corr = Z_corr.cpu().numpy()
+    corrected_pca = Z_corr.T if Z_corr.shape[0] == 30 else Z_corr
+    adata.obsm['X_pca'] = corrected_pca
+    adata.obsm['X_pca_harmony'] = corrected_pca
 
     # Recompute neighbors and UMAP on corrected embedding
     logger.info("  Recomputing neighbors and UMAP...")
@@ -381,7 +387,7 @@ def apply_muon_wnn(adata: ad.AnnData) -> ad.AnnData:
 
 def generate_merge_report(
     pre_metrics: dict,
-    post_metrics: dict | None,
+    post_metrics: Optional[dict],
     n_samples: int,
     n_cells: int,
     method: str,
