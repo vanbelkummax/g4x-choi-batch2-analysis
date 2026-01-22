@@ -1,6 +1,21 @@
 # G4X Gastric Cancer Progression Analysis
 ## Full Audit Report
 
+> ## 🚨 CRITICAL DATA QUALITY WARNING
+>
+> **The results in this report are PRELIMINARY and NOT TRUSTWORTHY.**
+>
+> - **CRITICAL BUG:** `merged_counts.h5ad` contains log-normalized data, NOT raw counts
+> - **Zero significant findings** across all analyses
+> - **Insufficient statistical power** (N=7-10 per stage)
+> - **Reanalysis from true raw counts required**
+>
+> See [`DATA_QUALITY_NOTICE.md`](DATA_QUALITY_NOTICE.md) and [`CRITICAL_AUDIT_RAW_COUNTS_BUG.md`](CRITICAL_AUDIT_RAW_COUNTS_BUG.md) for details.
+>
+> **Trustworthy data:** `results/qc_all_samples/raw/*.h5ad` (individual sample raw counts)
+
+---
+
 **Project:** Choi_GC_preGC_batch2
 **Platform:** G4X (Resolve Biosciences)
 **Analysis Period:** January 2026
