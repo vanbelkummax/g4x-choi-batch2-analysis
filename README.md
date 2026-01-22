@@ -296,6 +296,30 @@ python scripts/05_hypothesis_analysis.py
 - Mean 62.3 transcripts/cell, 34.3 genes/cell
 - All protein markers show high SNR (>10), with PanCK highest (96.0)
 - 2 samples flagged for low transcript detection (F01: 34, H04: 25)
+- **29 samples pass QC** (H04 excluded for low transcripts; C02, H02 excluded for WNN processing issues)
+
+### PCA Deep Dive ([`scripts/46_pca_deep_dive.py`](scripts/46_pca_deep_dive.py))
+
+**Key Finding: No significant transcriptional separation between disease stages at sample level.**
+
+| Test | Statistic | P-value | Interpretation |
+|------|-----------|---------|----------------|
+| Kruskal-Wallis | 1.97 | **0.578** | Stages not different |
+| Spearman ρ | -0.08 | 0.673 | No progression trend |
+
+**Variance Decomposition (PC1):**
+| Factor | R² | Category |
+|--------|-----|----------|
+| **Cell type** | **19.2%** | Biological |
+| Lane (batch) | 5.6% | Technical |
+| Stage | 1.3% | Biological |
+| Patient | 1.2% | Technical |
+
+**Conclusion:** Cell type composition dominates transcriptional variance (19.2%), masking any stage-related signal (1.3%). This indicates that **cell type-stratified analyses** are needed to detect progression-associated changes, rather than bulk sample comparisons.
+
+**Implication:** Biological differences between Normal → Metaplasia → Cancer likely exist *within* specific cell types (e.g., epithelial dedifferentiation, CAF activation, T cell exhaustion) rather than as global transcriptional shifts.
+
+*Full results: [`results/pca_deep_dive/`](results/pca_deep_dive/) including 10 figures, 29 sample panels, and statistical outputs.*
 
 ### Cell Type Composition
 | Cell Type | Mean % | Range |
