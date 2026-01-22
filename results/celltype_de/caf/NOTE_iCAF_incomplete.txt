@@ -1,0 +1,6 @@
+# iCAF Signature Note
+The iCAF signature is incomplete:
+- Using: IL6, PDGFRA, FAP
+- Missing: CXCL12 (not in RNA panel)
+
+Interpret iCAF scores with caution.

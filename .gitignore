@@ -21,6 +21,10 @@ __pycache__/
 !results/figures/*.png
 !results/figures/*.jpg
 !results/figures/*.pdf
+!results/celltype_de/figures/*.png
+!results/protein_rna_correlation/figures/*.png
+!results/protein_rna_correlation/summary_heatmap.png
+!results/pca_deep_dive/figures/*.png
 
 # IDE
 .vscode/

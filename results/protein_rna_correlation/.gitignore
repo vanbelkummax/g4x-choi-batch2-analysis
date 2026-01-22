@@ -1,0 +1,3 @@
+# Exclude individual sample panels (406 files, ~50MB)
+sample_panels/
+protein_summary/

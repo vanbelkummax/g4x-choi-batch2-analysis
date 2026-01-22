@@ -1,0 +1,6 @@
+# M2 Signature Note
+The M2 macrophage signature is incomplete:
+- Using: CD163, MRC1, IL10
+- Missing: ARG1 (not in RNA panel)
+
+Interpret M2 scores with caution.

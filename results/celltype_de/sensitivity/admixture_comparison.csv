@@ -1,0 +1,8 @@
+cell_type,total_cells,admixed_cells,pct_admixed
+epithelial,665200,0,0.0
+stromal,376855,0,0.0
+CD8_T,11131,0,0.0
+Macrophage,31159,0,0.0
+CD4_T,4655,0,0.0
+B_cell,19973,0,0.0
+endothelial,280361,0,0.0
