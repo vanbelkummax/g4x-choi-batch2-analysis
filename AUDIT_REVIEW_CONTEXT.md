@@ -3,7 +3,10 @@
 **Generated:** 2026-01-21
 **Project:** g4x-choi-batch2-analysis
 **Branch:** master
-**Latest Commit:** `6c201a9` - fix(qc): Add transcript density metrics and expanded conflict detection
+**Audit Baseline Commit:** `c237dde` (this document)
+**Environment:** `conda activate enact` (see `~/work/polymax/docs/SPATIAL_ANALYSIS_ENVIRONMENT.md`)
+
+> **Note:** Line numbers reference commit `6c201a9` (QC code). If code changes, verify line numbers.
 
 ---
 
@@ -104,17 +107,27 @@
 | | `results/qc_all_samples/figures/cross_sample/*.png` |
 | | `results/qc_all_samples/figures/batch_effects/*.png` |
 
-**QC Thresholds (Line 104-112):**
+**QC Thresholds (Line 104-112) with Provenance:**
 ```python
 QC_THRESHOLDS = {
-    'min_cells': 20_000,
-    'min_median_transcripts_per_cell': 30,
-    'min_median_genes_per_cell': 20,
-    'max_pct_empty': 5.0,
-    'min_median_protein_counts': 5.0,
-    'min_pct_protein_positive': 80.0,
+    'min_cells': 20_000,                      # G4X platform spec: typical 50K-200K cells/ROI
+    'min_median_transcripts_per_cell': 30,    # Resolve validation: median 50-150 for gastric
+    'min_median_genes_per_cell': 20,          # 387-gene panel: expect 30-80 genes/cell
+    'max_pct_empty': 5.0,                     # Industry standard: <5% empty acceptable
+    'min_median_protein_counts': 5.0,         # 17-marker panel: expect 10-50 counts
+    'min_pct_protein_positive': 80.0,         # Platform QC: >80% cells should have signal
 }
 ```
+
+**Expected Value Ranges (for verification):**
+| Metric | Expected Range | Red Flag If |
+|--------|----------------|-------------|
+| Cells per sample | 50,000 - 200,000 | <20,000 or >300,000 |
+| Median transcripts/cell | 50 - 150 | <30 |
+| Median genes/cell | 30 - 80 | <20 |
+| Transcript density | 0.3 - 0.8 trans/µm² | >2 SD from lane mean |
+| LISI (batch mixing) | >3.0 | <2.0 |
+| Silhouette (lane) | <0.3 | >0.5 |
 
 **Key Metrics Computed:**
 - Cell counts, transcript counts, gene counts per sample
@@ -194,7 +207,7 @@ This is a SIMPLIFIED WNN using variance-weighted concatenation, NOT true per-cel
 
 ## 4. Code Review Findings Addressed
 
-### Finding 1: Lane 4 Cell Size Anomaly ✅ FIXED
+### Finding 1: Lane 4 Cell Size Anomaly ✅ DETECTION ADDED
 **Commit:** `6c201a9`
 **Issue:** Lane 4 cells (54-70 µm²) smaller than Lanes 1-3 (80-120 µm²)
 **Risk:** Segmentation artifact could confound biological conclusions
@@ -204,11 +217,14 @@ This is a SIMPLIFIED WNN using variance-weighted concatenation, NOT true per-cel
 - Added 3-panel density comparison plots
 - Added density analysis section to QC report with z-score assessment
 
+**Note:** This adds DETECTION, not automatic correction. If density is constant across lanes despite area differences, downstream analysis should normalize by area or use density-based metrics.
+
 **How to Verify:**
 ```python
 # In sample_qc_summary.csv, check:
 # - median_transcript_density should be similar across lanes
-# - If constant density but different area → segmentation artifact
+# - If constant density but different area → segmentation artifact (normalize by area)
+# - If density differs → potential staining issue (investigate)
 ```
 
 ---
@@ -266,9 +282,52 @@ python scripts/63_merge_and_batch_correct.py 2>&1 | tee logs/63_merge.log
 ### Post-Execution Verification
 - [ ] `sample_qc_summary.csv` has 32 rows
 - [ ] `QC_REPORT.md` generated with density analysis
-- [ ] Only H04 sample marked FAIL
+- [ ] H04 sample marked FAIL (expected: zero transcripts)
+- [ ] Total FAIL count ≤ 2 (see decision tree below)
 - [ ] `merged_counts.h5ad` exists and has raw counts
 - [ ] `merged_corrected.h5ad` exists with batch correction
+- [ ] Transcript density within expected range (0.3-0.8 trans/µm²)
+
+### Failure Decision Tree
+
+```
+How many samples FAIL QC?
+│
+├── 0-1 failures → PROCEED (expected: H04 only)
+│
+├── 2-3 failures → INVESTIGATE
+│   ├── Same lane? → Lane-level technical issue
+│   ├── Same stage? → Biological concern
+│   └── Random? → Review thresholds, may proceed
+│
+├── 4-5 failures → PAUSE
+│   ├── Check raw data integrity
+│   ├── Verify loading script
+│   └── Consider relaxing thresholds with justification
+│
+└── 6+ failures → STOP
+    ├── Major technical problem
+    ├── Do NOT proceed without PI consultation
+    └── Document and escalate
+```
+
+### Rollback Procedure
+
+If pipeline fails mid-execution:
+```bash
+# Step 60 failed: No cleanup needed, re-run
+# Step 61 failed: Remove partial outputs
+rm -rf results/qc_all_samples/figures/per_sample/*
+rm -f results/qc_all_samples/sample_qc_summary.csv
+
+# Step 62 failed: Remove processed files
+rm -rf results/qc_all_samples/final_processed/*
+
+# Step 63 failed: Remove merged files
+rm -rf results/qc_all_samples/merged/*
+
+# Then re-run from failed step (--resume flag available for 61)
+```
 
 ---
 
@@ -350,6 +409,27 @@ d00dee3 fix: Address critical QC pipeline issues before full dataset run
 - [ ] CLAUDE.md updated with current status
 - [ ] Execution commands copy-paste ready
 - [ ] Post-QC analysis checklist exists
+
+---
+
+## 10. Post-QC Handoff
+
+After successful QC pipeline completion, proceed to advanced analysis phases:
+
+| Phase | Script | Key Outputs |
+|-------|--------|-------------|
+| **1. Progression Analysis** | `34_progression_analysis.py` | Cell type proportions N→M→C, CellRank streamlines |
+| **2. Cell-Cell Communication** | `35_cellcell_communication.py` | LIANA+ L-R, niche-phenotype tensor |
+| **3. CAF Network Topology** | `36_caf_subtyping.py` | mCAF/iCAF/apCAF scores, Delaunay centrality |
+| **4. TLS Detection** | `40_tls_detection.py` | Persistent homology H1, TLS density |
+| **5. Spatial Statistics** | `39_spatial_statistics.py` | Chemokine gradients, Ripley's K |
+| **6. Multi-Modal PCA** | `41_multimodal_pca.py` | Pseudobulk trajectories |
+
+**Reference:** See `G4X_ANALYSIS_PLAN.md` for detailed methodology.
+
+**Input for Advanced Analysis:**
+- Primary: `results/qc_all_samples/merged/merged_corrected.h5ad`
+- Fallback: `results/qc_all_samples/merged/merged_normalized.h5ad`
 
 ---
 

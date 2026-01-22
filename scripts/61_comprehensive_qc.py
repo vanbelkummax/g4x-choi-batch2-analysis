@@ -98,9 +98,16 @@ for d in [FIG_DIR_SAMPLE, FIG_DIR_CROSS, FIG_DIR_BATCH]:
 # Resolve baseline metrics for validation
 RESOLVE_METRICS_PATH = Path("/mnt/x/Choi_Batch_2_Tuesday/choi_preGC_b2_core_metrics.csv")
 
-# QC thresholds (evidence-based)
+# QC thresholds (evidence-based with provenance)
 # Note: min_pct_in_cells removed - metric not available in feature_matrix.h5
 # Capture efficiency is validated via Resolve baseline comparison instead
+#
+# Provenance:
+# - min_cells: G4X platform spec, typical 50K-200K cells/ROI
+# - min_median_transcripts: Resolve validation data, gastric median 50-150
+# - min_median_genes: 387-gene panel, expect 30-80 genes/cell
+# - max_pct_empty: Industry standard <5%
+# - Protein thresholds: 17-marker panel, expect 10-50 counts
 QC_THRESHOLDS = {
     'min_cells': 20_000,
     'min_median_transcripts_per_cell': 30,

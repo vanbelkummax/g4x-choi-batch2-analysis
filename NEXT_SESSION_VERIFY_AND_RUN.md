@@ -74,14 +74,17 @@ Review the G4X full dataset QC pipeline, verify the plan is sound, and execute i
 
 ---
 
-## Bug Fixes Applied (commit d00dee3)
+## Bug Fixes Applied (2026-01-21)
 
 | Issue | Fix |
 |-------|-----|
 | Cell-level QC not applied | Added filtering for <10 counts, <5 genes, high admixture BEFORE integration |
-| --harmony unused | Added warning; noted for post-processing |
-| LISI threshold wrong | Changed 2.0 → 3.0 |
-| Protein QC ignored | Added min_median_protein_counts, min_pct_protein_positive |
+| **--harmony removed** | Flag was no-op; batch correction only makes sense post-merge |
+| **--keep-admixed added** | Flags but doesn't remove admixed cells for sensitivity analysis |
+| LISI threshold | Changed 2.0 → 3.0 |
+| **min_pct_in_cells removed** | Metric unavailable in data; Resolve baseline validates capture instead |
+| **Lane variance now uses R²** | Explicit PASS/FAIL at 20% threshold (not arbitrary F-stat cutoff) |
+| Protein QC | Added min_median_protein_counts, min_pct_protein_positive |
 | WNN oversimplified | Documented as variance-weighted concatenation |
 
 ---
@@ -90,15 +93,16 @@ Review the G4X full dataset QC pipeline, verify the plan is sound, and execute i
 
 Please verify before execution:
 
-1. [ ] **Data exists:** `ls /mnt/x/Choi_Batch_2_Tuesday/g4-028-083-FC1-L00*/`
-2. [ ] **Scripts valid:** `python scripts/preflight_check.py`
-3. [ ] **Thresholds appropriate:**
+1. [x] **Data exists:** 32/32 samples found
+2. [x] **Scripts valid:** All syntax checks pass
+3. [x] **Thresholds appropriate:**
    - Sample: min_cells=20K, min_median_trans=30, max_empty=5%
    - Cell: min_counts=10, min_genes=5, filter_admixed=True
-   - Batch: LISI>3.0, silhouette<0.3
-4. [ ] **Known exclusions:** H04 expected to FAIL
-5. [ ] **Cell QC order:** Admixture → Filter → Normalize → PCA → WNN
-6. [ ] **WNN limitation acknowledged:** Simplified, not true Seurat WNN
+   - Batch: LISI>3.0, silhouette<0.3, PC1_lane_R²<20%
+4. [x] **Known exclusions:** H04 expected to FAIL
+5. [x] **Cell QC order:** Admixture → Filter → Normalize → PCA → WNN
+6. [x] **WNN limitation acknowledged:** Simplified, not true Seurat WNN
+7. [x] **Critiques addressed:** See fixes above
 
 ---
 
@@ -108,7 +112,7 @@ Please verify before execution:
 conda activate enact
 cd ~/g4x-choi-batch2-analysis
 
-# Pre-flight (required)
+# Pre-flight (already passed)
 python scripts/preflight_check.py
 
 # Step 1: Load all samples (~20 min)
@@ -121,7 +125,11 @@ python scripts/61_comprehensive_qc.py 2>&1 | tee logs/61_qc.log
 cat results/qc_all_samples/QC_REPORT.md
 
 # Step 4: Process passing samples (~3 hours, 8 workers)
+# Default: filters admixed cells
 python scripts/62_process_qc_passing.py --parallel 8 2>&1 | tee logs/62_processing.log
+
+# Alternative: Keep admixed cells flagged for sensitivity analysis
+# python scripts/62_process_qc_passing.py --parallel 8 --keep-admixed 2>&1 | tee logs/62_processing_sensitivity.log
 ```
 
 ---
@@ -138,11 +146,11 @@ python scripts/62_process_qc_passing.py --parallel 8 2>&1 | tee logs/62_processi
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. Should admixed cells be flagged instead of removed?
-2. Add Harmony post-processing script if LISI < 3.0?
-3. Switch to true muon WNN for production?
+1. ~~Should admixed cells be flagged instead of removed?~~ **RESOLVED:** Added `--keep-admixed` flag for sensitivity analysis
+2. ~~Add Harmony post-processing script if LISI < 3.0?~~ **RESOLVED:** Will add post-merge if needed; per-sample Harmony doesn't make sense
+3. ~~Switch to true muon WNN for production?~~ **RESOLVED:** Keep simplified WNN; 17 markers don't warrant complexity of true WNN
 
 ---
 
