@@ -124,6 +124,7 @@ def load_sample(sample_dir: Path, sample_id: str, lane: str) -> ad.AnnData:
         Loaded sample with RNA in X and protein in obsm['protein']
     """
     h5_path = sample_dir / "single_cell_data" / "feature_matrix.h5"
+    protein_csv_path = sample_dir / "single_cell_data" / "cell_by_protein.csv.gz"
 
     if not h5_path.exists():
         raise FileNotFoundError(f"No feature matrix for {sample_id}: {h5_path}")
@@ -161,20 +162,53 @@ def load_sample(sample_dir: Path, sample_id: str, lane: str) -> ad.AnnData:
                     data = [x.decode() if isinstance(x, bytes) else x for x in data]
                 adata.var[key] = data
 
-    # Separate RNA and protein
-    is_protein = adata.var_names.isin(PROTEIN_MARKERS)
-    protein_data = adata[:, is_protein].X.copy()
-    rna_data = adata[:, ~is_protein].X.copy()
+    # Separate RNA and protein based on probe_type column
+    # G4X uses: probe_type='targeting' for RNA genes, 'NCP'/'NCS' for protein probes
+    if 'probe_type' in adata.var.columns:
+        is_rna = adata.var['probe_type'] == 'targeting'
+    else:
+        # Fallback: RNA genes don't have NCP/NCS prefix
+        is_rna = ~adata.var_names.str.startswith(('NCP-', 'NCS-'))
+
+    rna_data = adata[:, is_rna].X.copy()
 
     # Create RNA-only AnnData
     adata_rna = ad.AnnData(X=rna_data)
-    adata_rna.var_names = adata.var_names[~is_protein].tolist()
+    adata_rna.var_names = adata.var_names[is_rna].tolist()
     adata_rna.obs = adata.obs.copy()
     adata_rna.obs_names = adata.obs_names.tolist()
 
-    # Store protein in obsm
-    adata_rna.obsm['protein'] = protein_data
-    adata_rna.uns['protein_names'] = adata.var_names[is_protein].tolist()
+    # Copy over var metadata for RNA genes
+    for col in adata.var.columns:
+        adata_rna.var[col] = adata.var.loc[is_rna, col].values
+
+    # Load protein data from separate CSV (contains mean intensity values)
+    # This is the CORRECT protein data source for G4X
+    if protein_csv_path.exists():
+        import gzip
+        with gzip.open(protein_csv_path, 'rt') as f:
+            protein_df = pd.read_csv(f)
+
+        # Extract intensity columns (format: ProteinName_intensity_mean)
+        intensity_cols = [c for c in protein_df.columns if c.endswith('_intensity_mean')]
+        protein_names = [c.replace('_intensity_mean', '') for c in intensity_cols]
+
+        # Filter to actual protein markers (exclude stains)
+        actual_proteins = [p for p in protein_names
+                          if p not in ['nuclearstain', 'cytoplasmicstain']]
+        actual_cols = [f"{p}_intensity_mean" for p in actual_proteins]
+
+        # Build protein matrix (cells × proteins)
+        protein_matrix = protein_df[actual_cols].values.astype(np.float32)
+
+        adata_rna.obsm['protein'] = protein_matrix
+        adata_rna.uns['protein_names'] = np.array(actual_proteins)
+        adata_rna.uns['n_proteins'] = len(actual_proteins)
+    else:
+        # Fallback: no protein data
+        adata_rna.obsm['protein'] = np.zeros((adata_rna.n_obs, 0), dtype=np.float32)
+        adata_rna.uns['protein_names'] = np.array([])
+        adata_rna.uns['n_proteins'] = 0
 
     # Add sample metadata
     prefix = sample_id[0]
@@ -188,7 +222,7 @@ def load_sample(sample_dir: Path, sample_id: str, lane: str) -> ad.AnnData:
     # Basic QC metrics
     adata_rna.obs['n_counts'] = np.array(adata_rna.X.sum(axis=1)).flatten()
     adata_rna.obs['n_genes'] = np.array((adata_rna.X > 0).sum(axis=1)).flatten()
-    adata_rna.obs['n_proteins'] = np.array((protein_data > 0).sum(axis=1)).flatten()
+    adata_rna.obs['n_proteins'] = np.array((adata_rna.obsm['protein'] > 0).sum(axis=1)).flatten()
 
     return adata_rna
 
