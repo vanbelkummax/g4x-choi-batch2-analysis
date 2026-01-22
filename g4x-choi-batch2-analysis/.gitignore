@@ -1,0 +1,5 @@
+results/
+logs/
+*.h5ad
+__pycache__/
+.ipynb_checkpoints/
