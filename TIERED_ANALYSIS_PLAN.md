@@ -37,6 +37,119 @@ This plan prioritizes analyses based on:
 
 ---
 
+## 🔥 Tier 0: PCA Deep Dive (IMMEDIATE PRIORITY)
+
+**User-requested priority analysis.** PCA-based exploration provides foundation for all downstream work.
+
+### 0.1 Sample-Level Pseudobulk PCA
+**Status:** Not started
+**Script:** `46_pca_deep_dive.py` (to create)
+**Priority:** 🔥 IMMEDIATE
+
+**Rationale:** Understand global sample relationships before cell-level analyses. Pseudobulk aggregation reduces noise and reveals sample-level patterns.
+
+**Methods:**
+- Aggregate counts per sample (pseudobulk)
+- PCA on log-normalized pseudobulk matrix
+- Color by: stage, patient, lane (batch)
+- Scree plot for variance explained
+
+**Deliverables:**
+- [ ] PC1 vs PC2 scatter (colored by stage)
+- [ ] PC1 vs PC2 scatter (colored by patient)
+- [ ] Scree plot (variance explained)
+- [ ] Top 20 PC1/PC2 loading genes
+- [ ] Figure: Sample trajectory in PCA space
+
+---
+
+### 0.2 Cell-Level PCA Analysis
+**Status:** Not started
+**Script:** `46_pca_deep_dive.py`
+**Priority:** 🔥 IMMEDIATE
+
+**Rationale:** Understand cell population structure and how it relates to disease stages.
+
+**Methods:**
+- Use existing `X_pca` from merged_corrected.h5ad
+- Visualize PC1-PC4 colored by: cell type, stage, patient
+- Density plots per stage in PC space
+- PC loading analysis for biological interpretation
+
+**Deliverables:**
+- [ ] PC1 vs PC2 colored by cell type
+- [ ] PC1 vs PC2 colored by stage (with density contours)
+- [ ] PC loadings heatmap (top genes per PC)
+- [ ] Stage separation quantification in PC space
+
+---
+
+### 0.3 Multimodal PCA Comparison
+**Status:** Not started
+**Script:** `46_pca_deep_dive.py`
+**Priority:** 🔥 IMMEDIATE
+
+**Rationale:** Compare information content of RNA vs Protein vs WNN integration.
+
+**Methods:**
+- PCA on RNA only
+- PCA on Protein only
+- PCA on WNN integrated space
+- Compare: Which modality best separates stages?
+
+**Deliverables:**
+- [ ] Side-by-side PCA plots (RNA / Protein / WNN)
+- [ ] Procrustes analysis (alignment between modalities)
+- [ ] Variance explained comparison
+- [ ] Modality contribution to stage separation
+
+---
+
+### 0.4 Batch Effect Visualization
+**Status:** Not started
+**Script:** `46_pca_deep_dive.py`
+**Priority:** 🔥 IMMEDIATE
+
+**Rationale:** Verify Harmony batch correction worked; understand residual batch effects.
+
+**Methods:**
+- PCA before Harmony (X_pca)
+- PCA after Harmony (X_pca_harmony)
+- Color by lane (batch variable)
+- LISI scores visualization
+
+**Deliverables:**
+- [ ] Pre-correction PCA colored by lane
+- [ ] Post-correction PCA colored by lane
+- [ ] LISI improvement visualization
+- [ ] Batch mixing quantification
+
+---
+
+### 0.5 MOFA+ Multi-Omics Factor Analysis
+**Status:** Not started
+**Script:** `47_mofa_analysis.py` (to create)
+**Priority:** HIGH (after basic PCA)
+
+**Rationale:** MOFA+ identifies shared and modality-specific factors, more sophisticated than simple PCA.
+
+**Methods:**
+- MOFA+ with RNA and Protein views
+- Factor interpretation (which genes/proteins drive each factor?)
+- Factor correlation with clinical variables (stage, patient)
+
+**Deliverables:**
+- [ ] MOFA factor loadings
+- [ ] Factor-stage associations
+- [ ] Shared vs modality-specific variance
+- [ ] Top features per factor
+
+**Polymath References:**
+- MOFA+ (Argelaguet et al.) - Multi-omics factor analysis
+- SMOPCA 2025 - Spatially aware multimodal PCA (doc_id: 47f141c8)
+
+---
+
 ## Tier 1: High-Priority Core Analyses (Week 1-2)
 
 These analyses directly address the primary hypothesis and have full marker support.
@@ -376,6 +489,8 @@ High-risk, high-reward analyses requiring method development.
 
 | Week | Tier | Analyses | Scripts |
 |------|------|----------|---------|
+| **NOW** | **0** | **🔥 PCA Deep Dive** | **46_pca_deep_dive.py** |
+| NOW | 0 | MOFA+ multi-omics factors | 47_mofa_analysis.py |
 | 1 | 1 | Cell proportions, Gastric markers | 34_progression_analysis.py |
 | 1-2 | 1 | CAF subtyping, Cell-cell communication | 35, 36 |
 | 2 | 2 | Spatial statistics, Immune analysis | 38, 39 |
