@@ -150,13 +150,17 @@ CELL_TYPE_MARKERS = {
 }
 
 # Conflict pairs for admixture detection
+# Note: This heuristic approach is a "lite" version of cellAdmix (R package)
+# It catches predictable conflicts but may miss subtle contamination patterns
+# For a full probabilistic approach, consider running 33_celladmix_correction.R
 CONFLICT_PAIRS = [
-    ('PanCK', 'CD45'),      # Epithelial + Immune
-    ('PanCK', 'aSMA'),      # Epithelial + Stromal
+    ('PanCK', 'CD45'),      # Epithelial + Immune (major lineage conflict)
+    ('PanCK', 'aSMA'),      # Epithelial + Stromal (Tumor-Stroma bleed-through)
     ('CD45', 'aSMA'),       # Immune + Stromal
     ('CD31', 'CD45'),       # Endothelial + Immune
-    ('CD3', 'CD68'),        # T cell + Macrophage
-    ('CD4', 'CD8'),         # CD4 + CD8
+    ('CD3', 'CD68'),        # T cell + Macrophage (within immune conflict)
+    ('CD4', 'CD8'),         # CD4 + CD8 (T cell subtype conflict)
+    ('CD3', 'PanCK'),       # T cell + Epithelial (Tumor-Immune bleed-through)
 ]
 
 ADMIX_THRESHOLD = 0.7  # Percentile for "high" expression

@@ -141,10 +141,25 @@ def compute_sample_qc_metrics(adata: ad.AnnData) -> dict:
         'q75_counts': np.percentile(adata.obs['n_counts'], 75),
     }
 
-    # Cell area if available
+    # Cell area and transcript density (CRITICAL for detecting segmentation artifacts)
+    # See: Lane 4 has smaller cells (54-70 µm²) vs Lanes 1-3 (80-120 µm²)
+    # If density is constant but area changes → segmentation artifact
+    # If density changes → staining/chemistry issue
     if 'cell_area' in adata.obs.columns:
         metrics['median_cell_area'] = np.median(adata.obs['cell_area'])
         metrics['std_cell_area'] = np.std(adata.obs['cell_area'])
+
+        # Transcript density: transcripts per µm² (key metric for segmentation QC)
+        cell_areas = adata.obs['cell_area'].values
+        cell_counts = adata.obs['n_counts'].values
+        # Avoid division by zero
+        valid_area_mask = cell_areas > 0
+        if valid_area_mask.sum() > 0:
+            densities = cell_counts[valid_area_mask] / cell_areas[valid_area_mask]
+            metrics['median_transcript_density'] = np.median(densities)
+            metrics['std_transcript_density'] = np.std(densities)
+            metrics['q25_transcript_density'] = np.percentile(densities, 25)
+            metrics['q75_transcript_density'] = np.percentile(densities, 75)
 
     # Protein metrics
     if 'protein' in adata.obsm:
@@ -343,6 +358,55 @@ def plot_sample_qc_panel(adata: ad.AnnData, sample_id: str, save_path: Path):
 
 def plot_cross_sample_comparison(all_metrics: pd.DataFrame, save_dir: Path):
     """Generate cross-sample comparison plots."""
+
+    # 0. CRITICAL: Transcript density by lane (detect segmentation artifacts)
+    # This is the primary metric to detect if Lane 4's smaller cells are artifacts
+    if 'median_transcript_density' in all_metrics.columns:
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+        # Plot 1: Density by lane (boxplot)
+        ax = axes[0]
+        all_metrics.boxplot(column='median_transcript_density', by='lane', ax=ax)
+        ax.set_title('Transcript Density by Lane')
+        ax.set_xlabel('Lane')
+        ax.set_ylabel('Median transcripts/µm²')
+        plt.suptitle('')  # Remove auto-title
+
+        # Plot 2: Cell area by lane
+        ax = axes[1]
+        if 'median_cell_area' in all_metrics.columns:
+            all_metrics.boxplot(column='median_cell_area', by='lane', ax=ax)
+            ax.set_title('Cell Area by Lane')
+            ax.set_xlabel('Lane')
+            ax.set_ylabel('Median cell area (µm²)')
+        plt.suptitle('')
+
+        # Plot 3: Density vs Area scatter (colored by lane)
+        ax = axes[2]
+        if 'median_cell_area' in all_metrics.columns:
+            lane_colors = {'Lane 1': 'blue', 'Lane 2': 'green', 'Lane 3': 'orange', 'Lane 4': 'red'}
+            for lane in sorted(all_metrics['lane'].unique()):
+                mask = all_metrics['lane'] == lane
+                ax.scatter(
+                    all_metrics.loc[mask, 'median_cell_area'],
+                    all_metrics.loc[mask, 'median_transcript_density'],
+                    label=lane, alpha=0.7, s=80,
+                    c=lane_colors.get(lane, 'gray')
+                )
+            ax.set_xlabel('Median cell area (µm²)')
+            ax.set_ylabel('Median transcripts/µm²')
+            ax.set_title('Density vs Area by Lane\n(Constant density = segmentation artifact)')
+            ax.legend()
+
+        plt.tight_layout()
+        plt.savefig(save_dir / "transcript_density_by_lane.png", dpi=150)
+        plt.close()
+
+        # Log density statistics for QC review
+        logger.info("Transcript density by lane:")
+        for lane in sorted(all_metrics['lane'].unique()):
+            lane_data = all_metrics[all_metrics['lane'] == lane]['median_transcript_density']
+            logger.info(f"  {lane}: mean={lane_data.mean():.2f}, std={lane_data.std():.2f}")
 
     # 1. Bar plot: median counts by sample
     fig, ax = plt.subplots(figsize=(14, 8))
@@ -615,12 +679,59 @@ def generate_qc_report(all_metrics: pd.DataFrame, batch_metrics: dict, save_path
         report += f"- Mean median counts: {lane_data['median_counts'].mean():.1f}\n"
         report += f"- Pass/Warn/Fail: {(lane_data['qc_status']=='PASS').sum()}/{(lane_data['qc_status']=='WARN').sum()}/{(lane_data['qc_status']=='FAIL').sum()}\n\n"
 
-    report += """## Recommendations
+    # Transcript Density Analysis (detect segmentation artifacts)
+    report += """
+## Transcript Density Analysis
+
+**Purpose:** Detect segmentation artifacts when cell areas vary between lanes.
+- If density is CONSTANT but area varies → Segmentation parameter change (artifact)
+- If density VARIES → Potential staining/chemistry issue (biological or technical)
+
+"""
+
+    if 'median_transcript_density' in all_metrics.columns:
+        # Calculate lane-level statistics
+        density_stats = all_metrics.groupby('lane')['median_transcript_density'].agg(['mean', 'std'])
+        area_stats = all_metrics.groupby('lane')['median_cell_area'].agg(['mean', 'std']) if 'median_cell_area' in all_metrics.columns else None
+
+        report += "| Lane | Density (trans/µm²) | Cell Area (µm²) | Assessment |\n"
+        report += "|------|---------------------|-----------------|------------|\n"
+
+        global_density_mean = all_metrics['median_transcript_density'].mean()
+        global_density_std = all_metrics['median_transcript_density'].std()
+
+        for lane in sorted(all_metrics['lane'].unique()):
+            d_mean = density_stats.loc[lane, 'mean']
+            d_std = density_stats.loc[lane, 'std']
+            a_mean = area_stats.loc[lane, 'mean'] if area_stats is not None else 0
+            a_std = area_stats.loc[lane, 'std'] if area_stats is not None else 0
+
+            # Assessment: check if this lane deviates > 1 std from global mean
+            z_score = abs(d_mean - global_density_mean) / global_density_std if global_density_std > 0 else 0
+            if z_score > 2:
+                assessment = "⚠️ INVESTIGATE"
+            elif z_score > 1:
+                assessment = "🔶 MONITOR"
+            else:
+                assessment = "✅ OK"
+
+            report += f"| {lane} | {d_mean:.2f} ± {d_std:.2f} | {a_mean:.1f} ± {a_std:.1f} | {assessment} |\n"
+
+        report += "\n**Interpretation Guide:**\n"
+        report += "- ✅ OK: Density within 1 SD of global mean\n"
+        report += "- 🔶 MONITOR: Density 1-2 SD from mean (check plots)\n"
+        report += "- ⚠️ INVESTIGATE: Density >2 SD from mean (potential artifact)\n"
+    else:
+        report += "*Transcript density not computed (cell_area not available)*\n"
+
+    report += """
+## Recommendations
 
 1. **Exclude** all FAIL samples from downstream analysis
 2. **Monitor** WARN samples for unusual patterns
 3. **Consider Harmony** batch correction if LISI < 2.0
 4. **Verify** Lane 4 cell sizes don't confound results
+5. **Check density plots** if any lane shows ⚠️ INVESTIGATE status
 
 ## Files Generated
 
