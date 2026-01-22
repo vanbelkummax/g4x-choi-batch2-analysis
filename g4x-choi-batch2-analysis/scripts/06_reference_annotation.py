@@ -2,8 +2,8 @@
 """
 06_reference_annotation.py - Reference-based cell type annotation
 
-Downloads Kumar et al. GSE183904 gastric cancer atlas and uses KNN-based
-label transfer to annotate G4X cells. Works with transformed data.
+Builds reference from Kumar et al. GSE183904 Normal gastric samples,
+annotates them with markers, then transfers labels to G4X data via KNN.
 
 Reference: "Single-Cell Atlas of Lineage States, Tumor Microenvironment,
 and Subtype-Specific Expression Programs in Gastric Cancer"
@@ -14,17 +14,16 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
-from scipy.sparse import issparse
+from scipy.sparse import csr_matrix, issparse
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import PCA
 from collections import Counter
 import warnings
 import gzip
-import tarfile
-import os
-import urllib.request
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import gc
 
 warnings.filterwarnings('ignore')
 
@@ -32,205 +31,192 @@ warnings.filterwarnings('ignore')
 BASE = Path('/home/user/g4x-choi-batch2-analysis')
 RESULTS = BASE / 'results/pilot'
 FIGURES = RESULTS / 'figures'
-REFERENCE_DIR = BASE / 'reference'
+REFERENCE_DIR = BASE / 'reference/GSE183904'
 
 SAMPLES = {'E02': 'Normal', 'F02': 'Metaplasia', 'G02': 'Cancer'}
 
-# GEO accession for Kumar et al. 2022 gastric cancer atlas
-GEO_URL = "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183904/suppl/"
-GEO_FILES = [
-    "GSE183904_matrix.mtx.gz",
-    "GSE183904_barcodes.tsv.gz",
-    "GSE183904_genes.tsv.gz",
-    "GSE183904_metadata.csv.gz"
+# Normal samples from Kumar et al. (for building reference)
+# GSM5573466_sample1 = Normal, GSM5573469_sample4 = Normal, etc.
+NORMAL_SAMPLES = [
+    ('GSM5573466_sample1.csv.gz', 'sample1_normal'),
+    ('GSM5573469_sample4.csv.gz', 'sample4_normal'),
+    ('GSM5573471_sample6.csv.gz', 'sample6_normal'),
+    ('GSM5573474_sample9.csv.gz', 'sample9_normal'),
+    ('GSM5573476_sample11.csv.gz', 'sample11_normal'),
+    ('GSM5573486_sample21.csv.gz', 'sample21_normal'),
+    ('GSM5573488_sample23.csv.gz', 'sample23_normal'),
+    ('GSM5573490_sample25.csv.gz', 'sample25_normal'),
 ]
+
+# Gastric-specific markers for reference annotation
+GASTRIC_MARKERS = {
+    # Epithelial
+    'Gastric_Pit_Mucous': ['MUC5AC', 'MUC6', 'TFF1', 'TFF2', 'EPCAM', 'CDH1'],
+    'Gastric_Chief_Parietal': ['PGC', 'ATP4A', 'ATP4B', 'GIF', 'EPCAM'],
+    'Goblet': ['MUC2', 'TFF3', 'SPINK4', 'EPCAM'],
+    'Enteroendocrine': ['CHGA', 'CHGB', 'GHRL', 'SST', 'GAST'],
+    'Stem_Progenitor': ['LGR5', 'OLFM4', 'SOX9', 'ASCL2'],
+    'Proliferating': ['MKI67', 'TOP2A', 'PCNA'],
+
+    # T cells
+    'T_CD4': ['CD3D', 'CD3E', 'CD4', 'IL7R', 'CCR7'],
+    'T_CD8': ['CD3D', 'CD3E', 'CD8A', 'CD8B'],
+    'T_Cytotoxic': ['GZMA', 'GZMB', 'GZMK', 'PRF1', 'NKG7'],
+    'T_Reg': ['FOXP3', 'IL2RA', 'CTLA4'],
+    'T_NK': ['KLRD1', 'NCAM1', 'GNLY', 'NKG7'],
+
+    # B cells
+    'B_Cell': ['MS4A1', 'CD19', 'CD79A', 'CD79B', 'PAX5'],
+    'Plasma_Cell': ['JCHAIN', 'IGHA1', 'IGHG1', 'SDC1', 'MZB1'],
+
+    # Myeloid
+    'Macrophage': ['CD68', 'CD163', 'CSF1R', 'MRC1', 'MSR1'],
+    'Monocyte': ['CD14', 'FCGR3A', 'S100A8', 'S100A9'],
+    'Dendritic_Cell': ['CD1C', 'CLEC10A', 'FCER1A'],
+    'Mast_Cell': ['KIT', 'TPSAB1', 'CPA3'],
+
+    # Stromal
+    'Fibroblast': ['COL1A1', 'COL1A2', 'LUM', 'DCN', 'VCAN'],
+    'CAF': ['FAP', 'ACTA2', 'PDGFRA', 'POSTN', 'THY1'],
+    'Endothelial': ['PECAM1', 'VWF', 'CDH5', 'CLDN5'],
+    'Pericyte': ['PDGFRB', 'RGS5', 'NOTCH3'],
+}
 
 # KNN parameters
 N_NEIGHBORS = 15
 N_PCS = 30
 
 
-def download_reference():
-    """Download Kumar et al. 2022 reference dataset from GEO."""
-    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+def load_sample(fpath: Path) -> sc.AnnData:
+    """Load a single GSE183904 sample."""
+    print(f"    Loading {fpath.name}...")
 
-    # Check if already downloaded
-    ref_h5ad = REFERENCE_DIR / 'kumar_gastric_reference.h5ad'
-    if ref_h5ad.exists():
-        print(f"  Reference already exists: {ref_h5ad}")
-        return ref_h5ad
+    with gzip.open(fpath, 'rt') as f:
+        df = pd.read_csv(f, index_col=0)
 
-    print("  Downloading Kumar et al. GSE183904 reference...")
-
-    # Try to download supplementary files
-    downloaded = []
-    for fname in GEO_FILES:
-        fpath = REFERENCE_DIR / fname
-        if not fpath.exists():
-            url = GEO_URL + fname
-            print(f"    Downloading {fname}...")
-            try:
-                urllib.request.urlretrieve(url, fpath)
-                downloaded.append(fpath)
-            except Exception as e:
-                print(f"    WARNING: Could not download {fname}: {e}")
-
-    # Check if we got all files
-    mtx_path = REFERENCE_DIR / 'GSE183904_matrix.mtx.gz'
-    barcodes_path = REFERENCE_DIR / 'GSE183904_barcodes.tsv.gz'
-    genes_path = REFERENCE_DIR / 'GSE183904_genes.tsv.gz'
-    meta_path = REFERENCE_DIR / 'GSE183904_metadata.csv.gz'
-
-    if not all(p.exists() for p in [mtx_path, barcodes_path, genes_path, meta_path]):
-        print("  WARNING: Could not download all reference files")
-        print("  Falling back to synthetic reference based on marker signatures")
-        return create_marker_reference()
-
-    # Load as AnnData
-    print("  Loading reference data...")
-    from scipy.io import mmread
-
-    # Read MTX
-    X = mmread(gzip.open(mtx_path, 'rb')).T.tocsr()
-
-    # Read barcodes and genes
-    with gzip.open(barcodes_path, 'rt') as f:
-        barcodes = [line.strip() for line in f]
-    with gzip.open(genes_path, 'rt') as f:
-        genes = [line.strip().split('\t')[0] for line in f]
-
-    # Read metadata
-    meta = pd.read_csv(meta_path, compression='gzip', index_col=0)
+    # Transpose: rows=cells, cols=genes
+    df = df.T
 
     # Create AnnData
-    ref = sc.AnnData(X=X)
-    ref.obs_names = barcodes[:X.shape[0]]
-    ref.var_names = genes[:X.shape[1]]
+    adata = sc.AnnData(X=csr_matrix(df.values.astype(np.float32)))
+    adata.obs_names = df.index.tolist()
+    adata.var_names = df.columns.tolist()
 
-    # Add metadata
-    ref.obs = ref.obs.join(meta, how='left')
+    print(f"      Loaded: {adata.n_obs:,} cells x {adata.n_vars:,} genes")
+    return adata
 
-    # Preprocess
+
+def build_reference():
+    """Build reference AnnData from Normal gastric samples."""
+    ref_h5ad = BASE / 'reference' / 'kumar_gastric_normal_reference.h5ad'
+
+    if ref_h5ad.exists():
+        print(f"  Loading existing reference: {ref_h5ad}")
+        return sc.read_h5ad(ref_h5ad)
+
+    print("  Building reference from Normal gastric samples...")
+
+    # Load all normal samples
+    adatas = []
+    for fname, sample_id in NORMAL_SAMPLES:
+        fpath = REFERENCE_DIR / fname
+        if fpath.exists():
+            ad = load_sample(fpath)
+            ad.obs['sample_id'] = sample_id
+            ad.obs['tissue'] = 'Normal'
+            adatas.append(ad)
+        else:
+            print(f"    WARNING: {fpath} not found")
+
+    if not adatas:
+        print("  ERROR: No reference samples found")
+        return None
+
+    # Concatenate
+    print(f"  Concatenating {len(adatas)} samples...")
+    ref = sc.concat(adatas, join='outer')
+    ref.obs_names_make_unique()
+    print(f"  Reference: {ref.n_obs:,} cells x {ref.n_vars:,} genes")
+
+    # Basic QC
+    print("  QC filtering...")
+    sc.pp.filter_cells(ref, min_genes=200)
+    sc.pp.filter_genes(ref, min_cells=10)
+
+    # Normalize
+    print("  Normalizing...")
+    ref.layers['counts'] = ref.X.copy()
     sc.pp.normalize_total(ref, target_sum=1e4)
     sc.pp.log1p(ref)
+
+    # HVG
+    print("  Finding HVGs...")
+    sc.pp.highly_variable_genes(ref, n_top_genes=2000, flavor='seurat_v3', layer='counts')
+
+    # PCA
+    print("  Computing PCA...")
+    sc.pp.pca(ref, n_comps=50)
+
+    # Neighbors and clustering
+    print("  Clustering...")
+    sc.pp.neighbors(ref, n_neighbors=15, n_pcs=30)
+    sc.tl.leiden(ref, resolution=0.5)
+    sc.tl.umap(ref)
+
+    # Annotate with markers
+    print("  Annotating with markers...")
+    ref = annotate_reference_cells(ref)
 
     # Save
     ref.write_h5ad(ref_h5ad)
     print(f"  Saved reference: {ref_h5ad}")
 
-    return ref_h5ad
+    return ref
 
 
-def create_marker_reference():
-    """Create a marker-based pseudo-reference when GEO download fails."""
-    ref_h5ad = REFERENCE_DIR / 'marker_reference.h5ad'
+def annotate_reference_cells(ref: sc.AnnData) -> sc.AnnData:
+    """Annotate reference cells using marker scoring."""
+    genes_in_data = set(ref.var_names)
 
-    if ref_h5ad.exists():
-        return ref_h5ad
+    # Score each cell type
+    for cell_type, markers in GASTRIC_MARKERS.items():
+        valid_markers = [m for m in markers if m in genes_in_data]
+        if valid_markers:
+            sc.tl.score_genes(ref, valid_markers, score_name=f'score_{cell_type}')
+        else:
+            ref.obs[f'score_{cell_type}'] = 0.0
 
-    print("  Creating marker-based pseudo-reference...")
+    # Assign by max score
+    score_cols = [c for c in ref.obs.columns if c.startswith('score_')]
+    scores = ref.obs[score_cols].values
+    cell_types = [c.replace('score_', '') for c in score_cols]
 
-    # Cell types and their canonical markers
-    # Based on Kumar et al. 2022 and general gastric cancer literature
-    CELL_TYPE_MARKERS = {
-        # Epithelial
-        'Gastric_Pit_Mucous': ['MUC5AC', 'MUC6', 'TFF1', 'TFF2', 'EPCAM'],
-        'Gastric_Chief_Parietal': ['PGC', 'ATP4A', 'EPCAM'],
-        'Goblet': ['MUC2', 'TFF3', 'EPCAM', 'SPINK4'],
-        'Intestinal_Enterocyte': ['CDX1', 'CDX2', 'CDH17', 'EPCAM'],
-        'Enteroendocrine': ['GHRL', 'SST', 'GAST', 'CHGA'],
-        'Stem_Progenitor': ['LGR5', 'PROM1', 'OLFM4', 'SOX9'],
-        'Proliferating_Epithelial': ['MKI67', 'TOP2A', 'EPCAM'],
+    max_indices = np.argmax(scores, axis=1)
+    max_scores = np.max(scores, axis=1)
 
-        # T cells
-        'T_CD4_Naive': ['CD3D', 'CD3E', 'CD4', 'CCR7', 'IL7R'],
-        'T_CD4_Memory': ['CD3D', 'CD3E', 'CD4', 'IL7R'],
-        'T_CD8_Cytotoxic': ['CD3D', 'CD3E', 'CD8A', 'GZMA', 'GZMB', 'PRF1'],
-        'T_CD8_Exhausted': ['CD3D', 'CD8A', 'PDCD1', 'CTLA4', 'LAG3', 'HAVCR2'],
-        'T_Reg': ['CD3D', 'CD4', 'FOXP3', 'IL2RA'],
-        'T_NK': ['NKG7', 'GNLY', 'KLRD1', 'CD3D'],
+    annotations = []
+    for idx, score in zip(max_indices, max_scores):
+        if score > 0.1:
+            annotations.append(cell_types[idx])
+        else:
+            annotations.append('Unknown')
 
-        # B cells
-        'B_Cell': ['MS4A1', 'CD19', 'CD79A', 'CD79B'],
-        'Plasma_Cell': ['IGHA1', 'IGHG1', 'IGHM', 'JCHAIN', 'SDC1'],
+    ref.obs['cell_type'] = annotations
 
-        # Myeloid
-        'Macrophage_M1': ['CD68', 'CD163', 'CSF1R', 'IL1B', 'TNF'],
-        'Macrophage_M2': ['CD68', 'CD163', 'MRC1', 'CD206'],
-        'Monocyte': ['CD14', 'ITGAM', 'S100A9'],
-        'Dendritic_Cell': ['CD1C', 'CLEC10A', 'HLA-DRA'],
-        'Mast_Cell': ['KIT', 'TPSAB1', 'CPA3'],
+    # Summary
+    counts = Counter(annotations)
+    print(f"    Reference cell type distribution:")
+    for ct, n in sorted(counts.items(), key=lambda x: -x[1])[:10]:
+        print(f"      {ct}: {n:,} ({n/ref.n_obs*100:.1f}%)")
 
-        # Stromal
-        'Fibroblast': ['COL1A1', 'LUM', 'VCAN', 'DCN'],
-        'CAF_Myofibroblast': ['ACTA2', 'TAGLN', 'MYH11'],
-        'CAF_Inflammatory': ['FAP', 'PDPN', 'THY1', 'POSTN'],
-        'Endothelial': ['PECAM1', 'VWF', 'CDH5'],
-        'Pericyte': ['PDGFRB', 'RGS5', 'ACTA2'],
-    }
-
-    # Get all unique markers
-    all_markers = set()
-    for markers in CELL_TYPE_MARKERS.values():
-        all_markers.update(markers)
-    all_markers = sorted(all_markers)
-
-    # Create pseudo-expression profiles (centroids)
-    n_types = len(CELL_TYPE_MARKERS)
-    n_genes = len(all_markers)
-
-    # Create expression matrix
-    X = np.zeros((n_types, n_genes))
-    cell_types = list(CELL_TYPE_MARKERS.keys())
-
-    for i, (ct, markers) in enumerate(CELL_TYPE_MARKERS.items()):
-        for marker in markers:
-            if marker in all_markers:
-                j = all_markers.index(marker)
-                X[i, j] = 2.0 + np.random.uniform(0.5, 1.5)  # High expression
-
-    # Add some background noise
-    X += np.random.uniform(0, 0.1, X.shape)
-
-    # Create AnnData
-    ref = sc.AnnData(X=X)
-    ref.var_names = all_markers
-    ref.obs_names = cell_types
-    ref.obs['cell_type'] = cell_types
-    ref.obs['cell_type_coarse'] = [ct.split('_')[0] for ct in cell_types]
-
-    ref.write_h5ad(ref_h5ad)
-    print(f"  Created marker reference with {n_types} cell types, {n_genes} markers")
-
-    return ref_h5ad
+    return ref
 
 
-def load_and_prepare_reference(ref_path: Path):
-    """Load reference and prepare for label transfer."""
-    print(f"  Loading reference: {ref_path}")
-    ref = sc.read_h5ad(ref_path)
+def knn_label_transfer(query, reference, n_neighbors=15, n_pcs=30):
+    """Transfer labels from reference to query using KNN in PCA space."""
+    print(f"  KNN label transfer (k={n_neighbors})...")
 
-    # Check for cell type column
-    type_col = None
-    for col in ['cell_type', 'celltype', 'Cell_type', 'cluster', 'annotation']:
-        if col in ref.obs.columns:
-            type_col = col
-            break
-
-    if type_col is None:
-        print(f"    WARNING: No cell type column found in reference")
-        print(f"    Available columns: {list(ref.obs.columns)}")
-        return None, None
-
-    print(f"    Cell type column: {type_col}")
-    print(f"    Reference shape: {ref.shape}")
-    print(f"    Cell types: {ref.obs[type_col].nunique()}")
-
-    return ref, type_col
-
-
-def find_common_genes(query, reference):
-    """Find genes common to both datasets."""
+    # Find common genes
     query_genes = set(query.var_names)
     ref_genes = set(reference.var_names)
     common = sorted(query_genes & ref_genes)
@@ -239,23 +225,13 @@ def find_common_genes(query, reference):
     print(f"    Reference genes: {len(ref_genes)}")
     print(f"    Common genes: {len(common)}")
 
-    return common
-
-
-def knn_label_transfer(query, reference, type_col, n_neighbors=15, n_pcs=30):
-    """Transfer labels from reference to query using KNN in PCA space."""
-    print(f"  Performing KNN label transfer (k={n_neighbors})...")
-
-    # Find common genes
-    common_genes = find_common_genes(query, reference)
-
-    if len(common_genes) < 50:
-        print(f"    WARNING: Only {len(common_genes)} common genes - too few for reliable transfer")
+    if len(common) < 50:
+        print(f"    WARNING: Only {len(common)} common genes - insufficient for transfer")
         return None, None
 
     # Subset to common genes
-    query_sub = query[:, common_genes].copy()
-    ref_sub = reference[:, common_genes].copy()
+    query_sub = query[:, common].copy()
+    ref_sub = reference[:, common].copy()
 
     # Get expression matrices
     X_query = query_sub.X.toarray() if issparse(query_sub.X) else query_sub.X
@@ -264,41 +240,40 @@ def knn_label_transfer(query, reference, type_col, n_neighbors=15, n_pcs=30):
     # Joint PCA
     print("    Computing joint PCA...")
     X_combined = np.vstack([X_ref, X_query])
+    n_comps = min(n_pcs, min(X_combined.shape) - 1, len(common) - 1)
 
-    from sklearn.decomposition import PCA
-    n_comps = min(n_pcs, min(X_combined.shape) - 1, len(common_genes) - 1)
     pca = PCA(n_components=n_comps)
     pca.fit(X_combined)
 
     X_ref_pca = pca.transform(X_ref)
     X_query_pca = pca.transform(X_query)
 
-    # Train KNN on reference
-    print(f"    Training KNN classifier...")
-    labels = reference.obs[type_col].values
+    # Train KNN
+    print(f"    Training KNN on {reference.n_obs:,} reference cells...")
+    labels = reference.obs['cell_type'].values
     le = LabelEncoder()
     labels_encoded = le.fit_transform(labels)
 
     knn = KNeighborsClassifier(n_neighbors=min(n_neighbors, len(labels)), weights='distance')
     knn.fit(X_ref_pca, labels_encoded)
 
-    # Predict on query
+    # Predict
     print(f"    Predicting labels for {query.n_obs:,} cells...")
     pred_encoded = knn.predict(X_query_pca)
     pred_labels = le.inverse_transform(pred_encoded)
 
-    # Get prediction confidence (proportion of neighbors with same label)
+    # Confidence
     proba = knn.predict_proba(X_query_pca)
     confidence = np.max(proba, axis=1)
 
     print(f"    Mean confidence: {confidence.mean():.3f}")
-    print(f"    Predictions: {Counter(pred_labels).most_common(5)}")
+    print(f"    Top predictions: {Counter(pred_labels).most_common(5)}")
 
     return pred_labels, confidence
 
 
-def annotate_sample(sample_id: str, ref, type_col):
-    """Annotate a single sample with reference labels."""
+def annotate_sample(sample_id: str, reference):
+    """Annotate a single G4X sample with reference labels."""
     input_path = RESULTS / f'{sample_id}_annotated.h5ad'
 
     if not input_path.exists():
@@ -309,12 +284,8 @@ def annotate_sample(sample_id: str, ref, type_col):
     adata = sc.read_h5ad(input_path)
     print(f"    Cells: {adata.n_obs:,}")
 
-    # Perform label transfer
-    labels, confidence = knn_label_transfer(
-        adata, ref, type_col,
-        n_neighbors=N_NEIGHBORS,
-        n_pcs=N_PCS
-    )
+    # Transfer labels
+    labels, confidence = knn_label_transfer(adata, reference, N_NEIGHBORS, N_PCS)
 
     if labels is None:
         adata.obs['celltype_reference'] = 'Transfer_Failed'
@@ -323,7 +294,7 @@ def annotate_sample(sample_id: str, ref, type_col):
         adata.obs['celltype_reference'] = labels
         adata.obs['celltype_reference_conf'] = confidence
 
-        # Create coarse labels
+        # Coarse labels
         coarse = [ct.split('_')[0] if '_' in ct else ct for ct in labels]
         adata.obs['celltype_reference_coarse'] = coarse
 
@@ -335,178 +306,171 @@ def annotate_sample(sample_id: str, ref, type_col):
     return adata
 
 
-def compare_annotations(adata, sample_id, stage):
-    """Compare marker-based and reference-based annotations."""
-    results = []
-
-    if 'celltype_markers' not in adata.obs.columns:
-        return pd.DataFrame()
-    if 'celltype_reference' not in adata.obs.columns:
-        return pd.DataFrame()
-
-    # Get proportions for each method
-    marker_counts = adata.obs['celltype_markers'].value_counts(normalize=True)
-    ref_counts = adata.obs['celltype_reference'].value_counts(normalize=True)
-
-    # Goblet comparison (key validation)
-    goblet_marker = marker_counts.get('Goblet', 0)
-    goblet_ref = ref_counts.get('Goblet', 0)
-
-    results.append({
-        'sample_id': sample_id,
-        'stage': stage,
-        'cell_type': 'Goblet',
-        'marker_pct': goblet_marker * 100,
-        'reference_pct': goblet_ref * 100,
-        'difference': abs(goblet_marker - goblet_ref) * 100
-    })
-
-    # All cell types comparison
-    all_types = set(marker_counts.index) | set(ref_counts.index)
-    for ct in all_types:
-        if ct in ['Unknown', 'Transfer_Failed']:
-            continue
-        results.append({
-            'sample_id': sample_id,
-            'stage': stage,
-            'cell_type': ct,
-            'marker_pct': marker_counts.get(ct, 0) * 100,
-            'reference_pct': ref_counts.get(ct, 0) * 100,
-            'difference': abs(marker_counts.get(ct, 0) - ref_counts.get(ct, 0)) * 100
-        })
-
-    return pd.DataFrame(results)
-
-
-def create_visualizations(annotated_samples: dict):
-    """Create comparison visualizations."""
+def create_visualizations(annotated: dict, reference):
+    """Create visualization figures."""
     FIGURES.mkdir(parents=True, exist_ok=True)
 
-    # 1. Reference annotation UMAP per sample
+    # 1. Reference UMAP
+    fig, ax = plt.subplots(figsize=(12, 10))
+    sc.pl.umap(reference, color='cell_type', ax=ax, show=False,
+              legend_loc='on data', legend_fontsize=6,
+              title='Kumar et al. Normal Gastric Reference')
+    plt.tight_layout()
+    fig.savefig(FIGURES / 'reference_umap.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"  Saved: {FIGURES / 'reference_umap.png'}")
+
+    # 2. G4X samples with reference annotations
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-    for i, (sample_id, (adata, stage)) in enumerate(annotated_samples.items()):
+    for i, (sample_id, (adata, stage)) in enumerate(annotated.items()):
         ax = axes[i]
-
         if 'celltype_reference' in adata.obs.columns and 'X_umap' in adata.obsm:
-            # Get top 10 cell types for color
-            top_types = adata.obs['celltype_reference'].value_counts().head(10).index.tolist()
-            colors = adata.obs['celltype_reference'].apply(
-                lambda x: x if x in top_types else 'Other'
-            )
-
             sc.pl.umap(adata, color='celltype_reference', ax=ax, show=False,
-                      legend_loc='on data', legend_fontsize=6,
+                      legend_loc='on data', legend_fontsize=5,
                       title=f'{sample_id}: {stage}')
 
-    plt.suptitle('Reference-Based Cell Type Annotation', fontsize=14, fontweight='bold')
+    plt.suptitle('G4X Samples - Reference-Based Annotation', fontsize=14, fontweight='bold')
     plt.tight_layout()
     fig.savefig(FIGURES / 'reference_annotation_umap.png', dpi=150, bbox_inches='tight')
     plt.close()
     print(f"  Saved: {FIGURES / 'reference_annotation_umap.png'}")
 
-    # 2. Marker vs Reference comparison bar chart
-    comparison_data = []
-    for sample_id, (adata, stage) in annotated_samples.items():
-        comp_df = compare_annotations(adata, sample_id, stage)
-        comparison_data.append(comp_df)
+    # 3. Comparison: Marker vs Reference
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    if comparison_data:
-        comp_all = pd.concat(comparison_data, ignore_index=True)
-        comp_all.to_csv(RESULTS / 'reference_annotations.csv', index=False)
-
-        # Goblet validation plot
-        goblet_df = comp_all[comp_all['cell_type'] == 'Goblet']
-        if len(goblet_df) > 0:
-            fig, ax = plt.subplots(figsize=(10, 6))
-
-            x = np.arange(len(goblet_df))
-            width = 0.35
-
-            ax.bar(x - width/2, goblet_df['marker_pct'], width,
-                   label='Marker-based', color='steelblue')
-            ax.bar(x + width/2, goblet_df['reference_pct'], width,
-                   label='Reference-based', color='coral')
-
-            ax.set_xlabel('Sample')
-            ax.set_ylabel('Goblet Cell %')
-            ax.set_title('Goblet Cell Proportion: Marker vs Reference Validation',
-                        fontweight='bold')
-            ax.set_xticks(x)
-            ax.set_xticklabels([f"{row['sample_id']}\n({row['stage']})"
-                               for _, row in goblet_df.iterrows()])
-            ax.legend()
-
-            # Add values on bars
-            for i, (_, row) in enumerate(goblet_df.iterrows()):
-                ax.annotate(f"{row['marker_pct']:.1f}%",
-                           xy=(i - width/2, row['marker_pct']),
-                           ha='center', va='bottom', fontsize=9)
-                ax.annotate(f"{row['reference_pct']:.1f}%",
-                           xy=(i + width/2, row['reference_pct']),
-                           ha='center', va='bottom', fontsize=9)
-
-            plt.tight_layout()
-            fig.savefig(FIGURES / 'goblet_validation.png', dpi=150)
-            plt.close()
-            print(f"  Saved: {FIGURES / 'goblet_validation.png'}")
-
-    # 3. Confidence distribution
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-
-    for i, (sample_id, (adata, stage)) in enumerate(annotated_samples.items()):
+    for i, (sample_id, (adata, stage)) in enumerate(annotated.items()):
         ax = axes[i]
 
+        if 'celltype_markers' in adata.obs.columns and 'celltype_reference' in adata.obs.columns:
+            # Get proportions
+            marker_props = adata.obs['celltype_markers'].value_counts(normalize=True)
+            ref_props = adata.obs['celltype_reference'].value_counts(normalize=True)
+
+            # Key types
+            key_types = ['Goblet', 'Fibroblast', 'Plasma_Cell', 'Macrophage', 'T_CD8',
+                        'Gastric_Pit_Mucous', 'Gastric_Chief_Parietal', 'Enteroendocrine']
+            x = np.arange(len(key_types))
+            width = 0.35
+
+            # Map marker types to reference types
+            marker_vals = []
+            for kt in key_types:
+                if kt == 'Gastric_Pit_Mucous':
+                    val = marker_props.get('Gastric_Pit', 0)
+                elif kt == 'Gastric_Chief_Parietal':
+                    val = marker_props.get('Gastric_Chief', 0)
+                else:
+                    val = marker_props.get(kt, 0)
+                marker_vals.append(val * 100)
+
+            ref_vals = [ref_props.get(kt, 0) * 100 for kt in key_types]
+
+            ax.bar(x - width/2, marker_vals, width, label='Marker', color='steelblue')
+            ax.bar(x + width/2, ref_vals, width, label='Reference', color='coral')
+
+            ax.set_xlabel('Cell Type')
+            ax.set_ylabel('Proportion (%)')
+            ax.set_title(f'{sample_id}: {stage}', fontweight='bold')
+            ax.set_xticks(x)
+            ax.set_xticklabels(key_types, rotation=45, ha='right', fontsize=7)
+            ax.legend()
+
+    plt.suptitle('Marker vs Reference Annotation', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    fig.savefig(FIGURES / 'validation_comparison.png', dpi=150)
+    plt.close()
+    print(f"  Saved: {FIGURES / 'validation_comparison.png'}")
+
+    # 4. Confidence histogram
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+    for i, (sample_id, (adata, stage)) in enumerate(annotated.items()):
+        ax = axes[i]
         if 'celltype_reference_conf' in adata.obs.columns:
             conf = adata.obs['celltype_reference_conf']
             ax.hist(conf, bins=50, color='steelblue', edgecolor='white')
-            ax.axvline(conf.mean(), color='red', linestyle='--',
-                      label=f'Mean: {conf.mean():.2f}')
-            ax.set_xlabel('Prediction Confidence')
+            ax.axvline(conf.mean(), color='red', linestyle='--', label=f'Mean: {conf.mean():.2f}')
+            ax.set_xlabel('Confidence')
             ax.set_ylabel('Cell Count')
             ax.set_title(f'{sample_id}: {stage}')
             ax.legend()
 
-    plt.suptitle('Reference Label Transfer Confidence', fontsize=14, fontweight='bold')
+    plt.suptitle('Label Transfer Confidence', fontsize=14, fontweight='bold')
     plt.tight_layout()
     fig.savefig(FIGURES / 'reference_confidence.png', dpi=150)
     plt.close()
     print(f"  Saved: {FIGURES / 'reference_confidence.png'}")
 
 
+def save_comparison_csv(annotated: dict):
+    """Save detailed comparison CSV."""
+    rows = []
+
+    for sample_id, (adata, stage) in annotated.items():
+        if 'celltype_reference' not in adata.obs.columns:
+            continue
+
+        # Reference proportions
+        ref_counts = adata.obs['celltype_reference'].value_counts()
+        for ct, n in ref_counts.items():
+            rows.append({
+                'sample_id': sample_id,
+                'stage': stage,
+                'method': 'reference',
+                'cell_type': ct,
+                'count': n,
+                'proportion': n / adata.n_obs
+            })
+
+        # Marker proportions
+        if 'celltype_markers' in adata.obs.columns:
+            marker_counts = adata.obs['celltype_markers'].value_counts()
+            for ct, n in marker_counts.items():
+                rows.append({
+                    'sample_id': sample_id,
+                    'stage': stage,
+                    'method': 'markers',
+                    'cell_type': ct,
+                    'count': n,
+                    'proportion': n / adata.n_obs
+                })
+
+    df = pd.DataFrame(rows)
+    df.to_csv(RESULTS / 'reference_annotations.csv', index=False)
+    print(f"\nSaved: {RESULTS / 'reference_annotations.csv'}")
+
+
 def main():
     print("=" * 60)
     print("Reference-Based Cell Type Annotation")
-    print("Kumar et al. 2022 Gastric Cancer Atlas")
+    print("Kumar et al. 2022 Normal Gastric Reference")
     print("=" * 60)
 
-    # Step 1: Download/create reference
-    print("\n[1/3] Preparing reference dataset...")
-    ref_path = download_reference()
+    # Step 1: Build reference
+    print("\n[1/3] Building reference from Normal gastric samples...")
+    reference = build_reference()
 
-    if ref_path is None:
-        print("ERROR: Could not prepare reference dataset")
+    if reference is None:
+        print("ERROR: Could not build reference")
         return
 
-    # Load reference
-    ref, type_col = load_and_prepare_reference(ref_path)
+    print(f"\n  Reference ready: {reference.n_obs:,} cells, "
+          f"{reference.obs['cell_type'].nunique()} cell types")
 
-    if ref is None:
-        print("ERROR: Could not load reference")
-        return
-
-    # Step 2: Annotate each sample
-    print("\n[2/3] Annotating samples...")
+    # Step 2: Annotate G4X samples
+    print("\n[2/3] Annotating G4X samples...")
     annotated = {}
 
     for sample_id, stage in SAMPLES.items():
-        adata = annotate_sample(sample_id, ref, type_col)
+        adata = annotate_sample(sample_id, reference)
         if adata is not None:
             annotated[sample_id] = (adata, stage)
 
-    # Step 3: Create visualizations
+    # Step 3: Visualize
     print("\n[3/3] Creating visualizations...")
-    create_visualizations(annotated)
+    create_visualizations(annotated, reference)
+    save_comparison_csv(annotated)
 
     # Summary
     print("\n" + "=" * 60)
@@ -522,7 +486,17 @@ def main():
                 pct = n / adata.n_obs * 100
                 print(f"    {ct}: {n:,} ({pct:.1f}%)")
 
-    print(f"\nOutputs saved to: {RESULTS}")
+    # Goblet validation
+    print("\n" + "-" * 40)
+    print("GOBLET VALIDATION (Marker: E02=6%, F02=7%, G02=48%)")
+    print("-" * 40)
+    for sample_id, (adata, stage) in annotated.items():
+        if 'celltype_reference' in adata.obs.columns:
+            goblet_n = (adata.obs['celltype_reference'] == 'Goblet').sum()
+            goblet_pct = goblet_n / adata.n_obs * 100
+            print(f"  {sample_id} ({stage}): {goblet_pct:.1f}% Goblet")
+
+    print(f"\nOutputs: {RESULTS}")
 
 
 if __name__ == '__main__':
