@@ -20,6 +20,23 @@ Comprehensive multimodal spatial transcriptomics analysis of G4X data from the C
 | **Transcript Panel** | 387 genes |
 | **Protein Panel** | 17 markers (immune-focused) |
 
+## Data Validity Status
+
+**All visualization and clustering analyses are VALID.** See [DATA_VALIDITY_STATUS.md](DATA_VALIDITY_STATUS.md) for details.
+
+| Analysis | Status | Notes |
+|----------|--------|-------|
+| UMAP, PCA, Clustering | **VALID** | Standard normalized data workflow |
+| Cell type annotation | **VALID** | Protein marker-based |
+| Spatial analysis | **VALID** | Coordinates unchanged |
+| Batch correction (Harmony) | **VALID** | Works on normalized data |
+
+### Per-Patient UMAP Analysis
+
+![Per-Patient UMAP](results/per_patient_umap/per_patient_umap_clusters.png)
+
+**Key finding:** Both SNU-105 (558K cells) and SNU-107 (727K cells) contain all three disease stages (Normal → Metaplasia → Cancer), enabling within-patient progression analysis that eliminates patient confounding.
+
 ### Protein Panel (17 markers)
 
 | Marker | Cell Type Association |
