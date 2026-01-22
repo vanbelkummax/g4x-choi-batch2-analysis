@@ -1,0 +1,71 @@
+{
+  "PMC": [
+    "TFF1",
+    "MUC5AC",
+    "PSCA",
+    "MUC1",
+    "TFF2"
+  ],
+  "T cell": [
+    "CCL5",
+    "CCL4",
+    "KLRB1",
+    "GZMA",
+    "CD3D",
+    "CXCR4",
+    "NKG7"
+  ],
+  "MSC": [
+    "OLFM4",
+    "CLDN4"
+  ],
+  "Enterocyte": [],
+  "GMC": [
+    "PGC",
+    "MUC6"
+  ],
+  "Enteroendocrine": [
+    "CHGA"
+  ],
+  "PC": [
+    "TOP2A",
+    "STMN1"
+  ],
+  "B cell": [
+    "CD79A"
+  ],
+  "Neck-like cell": [
+    "PGC",
+    "MMP1"
+  ],
+  "Fibroblast": [
+    "LUM",
+    "POSTN"
+  ],
+  "Cancer cell": [
+    "CLDN7",
+    "CEACAM6",
+    "CD9"
+  ],
+  "EC": [
+    "FABP5"
+  ],
+  "Goblet cell": [
+    "TFF3",
+    "MUC2",
+    "WFDC2"
+  ],
+  "Macrophage": [
+    "HLA-DRA",
+    "CCL3"
+  ],
+  "SM cell": [
+    "RGS5",
+    "ACTA2",
+    "TAGLN"
+  ],
+  "Mast cell": [],
+  "Chief cell": [
+    "CHIA"
+  ]
+}
