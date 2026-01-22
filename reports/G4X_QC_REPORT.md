@@ -296,6 +296,85 @@ Thresholds based on:
 
 ---
 
+## 12. Independent Verification
+
+**Verification Date:** 2026-01-21
+**Verified By:** Claude Code (Automated QC Audit)
+
+### 12.1 Verification Summary
+
+| Check | Status | Details |
+|-------|--------|---------|
+| **File Structure** | ✅ PASS | 32 raw, 29 processed, 3 merged files present |
+| **Cell Count** | ✅ PASS | 1,835,026 cells (79.5% retention from 2.3M) |
+| **Gene Panel** | ✅ PASS | 341 genes (targeted panel intact) |
+| **Sample Pass Rate** | ✅ PASS | 29/32 (90.6%) in final dataset |
+| **Embeddings** | ✅ PASS | PCA, Harmony, UMAP, WNN — all valid, 0% NaN |
+| **Cell Annotations** | ✅ PASS | 14 cell types, 4 lineages, 0 null values |
+| **Stage Balance** | ✅ PASS | All 4 stages represented (19-36%) |
+| **Protein Data** | ✅ PASS | 17 markers, 100% detection rate |
+| **Batch Correction** | ✅ PASS | LISI 2.46→2.66, good lane mixing in UMAP |
+| **QC Thresholds** | ✅ PASS | Aligned with spatial transcriptomics standards |
+
+### 12.2 Sample Exclusion Verification
+
+| Sample | Status | Justification | Verified |
+|--------|--------|---------------|----------|
+| **H04** | FAIL | Median transcripts 25 (threshold: 30), median genes 11 (threshold: 20), 1.6σ below cancer mean | ✅ Justified |
+| **D01** | WARN | 11.9% empty cells (4.7σ above mean), passes all other metrics | ✅ Appropriate |
+| **C02** | Excluded | Passed sample QC, failed during PCA (NaN values) | ✅ Acceptable |
+| **H02** | Excluded | Passed sample QC, failed during PCA (NaN values) | ✅ Acceptable |
+
+### 12.3 Data Integrity Checks
+
+```
+merged_corrected.h5ad:
+  Cells: 1,835,026
+  Genes: 341
+  Embeddings: X_pca (30), X_pca_harmony (30), X_umap (2), X_wnn (45)
+  NaN in embeddings: 0
+  Protein matrix: (1835026, 17)
+  Leiden clusters: 23
+```
+
+### 12.4 Cell Type Distribution (Verified)
+
+| Lineage | Cells | Percentage |
+|---------|-------|------------|
+| Epithelial | 665,200 | 36.2% |
+| Immune | 512,610 | 27.9% |
+| Stromal | 376,855 | 20.5% |
+| Endothelial | 280,361 | 15.3% |
+
+### 12.5 Stage Balance (Verified)
+
+| Stage | Samples | Cells | Percentage |
+|-------|---------|-------|------------|
+| Control | 4 | 439,670 | 24.0% |
+| Normal | 7 | 388,465 | 21.2% |
+| Metaplasia | 7 | 347,862 | 19.0% |
+| Cancer | 10 | 659,029 | 35.9% |
+
+### 12.6 Known Limitation
+
+⚠️ **`layers['counts']` Contains Log-Normalized Data**
+
+The counts layer in `merged_corrected.h5ad` contains log1p-normalized data (max: 9.19) rather than raw integer counts. This occurred because individual processed files were normalized before merging.
+
+**Impact:**
+- ❌ scVI batch correction will not work (requires raw counts)
+- ✅ All standard analyses work correctly (clustering, DE, spatial stats)
+
+**Workaround:** Raw counts available in `results/qc_all_samples/raw/*.h5ad` if scVI is needed.
+
+### 12.7 Verification Verdict
+
+**✅ QC PASSED — Data is suitable for downstream analysis**
+
+Use `results/qc_all_samples/merged/merged_corrected.h5ad` for all downstream analyses.
+
+---
+
 ## Appendix: Sample-Level Metrics
 
 | Sample | Lane | Stage | Cells | Median Trans | Median Genes | QC Status |
