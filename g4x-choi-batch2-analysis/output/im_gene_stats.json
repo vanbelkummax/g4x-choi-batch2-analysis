@@ -1,0 +1,78 @@
+{
+  "im_intestinal": {
+    "total": 9,
+    "present": 9,
+    "present_genes": [
+      "CDX2",
+      "CDX1",
+      "MUC2",
+      "TFF3",
+      "CDH17",
+      "GUCY2C",
+      "GPA33",
+      "CFTR",
+      "HNF4A"
+    ],
+    "missing_genes": []
+  },
+  "im_gastric": {
+    "total": 7,
+    "present": 7,
+    "present_genes": [
+      "TFF1",
+      "TFF2",
+      "MUC5AC",
+      "MUC6",
+      "PGC",
+      "ATP4A",
+      "PSCA"
+    ],
+    "missing_genes": []
+  },
+  "im_stem_repair": {
+    "total": 3,
+    "present": 3,
+    "present_genes": [
+      "LGR5",
+      "OLFM4",
+      "SOX9"
+    ],
+    "missing_genes": []
+  },
+  "hwang_cancer": {
+    "total": 29,
+    "present": 29,
+    "present_genes": [
+      "ACTA2",
+      "AREG",
+      "ASCC2",
+      "BEST1",
+      "BRCA1",
+      "CREBBP",
+      "DDX5",
+      "EP300",
+      "ESR1",
+      "FHL2",
+      "GNL3",
+      "HIPK2",
+      "HSF1",
+      "IGSF9",
+      "JUN",
+      "MSH6",
+      "PARP1",
+      "PAWR",
+      "PCNA",
+      "PML",
+      "PPP2R5A",
+      "RPA1",
+      "SMAD3",
+      "SMARCA4",
+      "TP53",
+      "TP63",
+      "WRN",
+      "WT1",
+      "WTAP"
+    ],
+    "missing_genes": []
+  }
+}

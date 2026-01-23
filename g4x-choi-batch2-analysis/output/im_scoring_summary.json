@@ -1,0 +1,44 @@
+{
+  "n_cells": 134467,
+  "n_genes": 337,
+  "samples": {
+    "G02": 76463,
+    "F02": 30229,
+    "E02": 27775
+  },
+  "stages": {
+    "Cancer": 76463,
+    "Metaplasia": 30229,
+    "Normal": 27775
+  },
+  "score_means": {
+    "im_intestinal": 0.20619029839294173,
+    "im_gastric": 0.25543870923284245,
+    "im_stem_repair": -0.07351259454118357,
+    "hwang_cancer": 0.03510487220328649,
+    "im_ratio": 0.4372915108376696
+  },
+  "score_by_stage": {
+    "Normal": {
+      "im_intestinal": -0.057880440818129666,
+      "im_gastric": 0.4623496981563522,
+      "im_stem_repair": -0.10311022764184495,
+      "hwang_cancer": -0.05182629883545798,
+      "im_ratio": 0.3883848619850812
+    },
+    "Metaplasia": {
+      "im_intestinal": -0.006505029627611516,
+      "im_gastric": 0.4283434253584933,
+      "im_stem_repair": -0.08060715079140815,
+      "hwang_cancer": -0.0506707816726574,
+      "im_ratio": 0.40118840126808536
+    },
+    "Cancer": {
+      "im_intestinal": 0.38620065441246504,
+      "im_gastric": 0.11192237608984815,
+      "im_stem_repair": -0.05995655305368105,
+      "hwang_cancer": 0.10059308894363195,
+      "im_ratio": 0.46932979171939804
+    }
+  }
+}

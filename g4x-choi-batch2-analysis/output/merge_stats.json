@@ -1,0 +1,44 @@
+{
+  "n_cells": 134467,
+  "n_genes": 337,
+  "samples": {
+    "G02": 76463,
+    "F02": 30229,
+    "E02": 27775
+  },
+  "rctd_types": {
+    "Enterocyte": 26691,
+    "Cancer": 15082,
+    "Fibroblast": 12296,
+    "MSC": 8255,
+    "T_cell": 7869,
+    "Endothelial": 7710,
+    "Macrophage": 7634,
+    "Mast": 7446,
+    "Enteroendocrine": 5456,
+    "GMC": 4864,
+    "Neck_like": 3218,
+    "PC": 2440,
+    "PMC": 1906,
+    "B_cell": 1862,
+    "Smooth_Muscle": 1759,
+    "Chief": 1480,
+    "Goblet": 1340,
+    "Unknown": 579
+  },
+  "rctd_rejection_rate": 0.14026489770724415,
+  "im_means_by_stage": {
+    "Normal": {
+      "im_intestinal": -0.05788044081812966,
+      "hwang_cancer": -0.05182629883545797
+    },
+    "Metaplasia": {
+      "im_intestinal": -0.006505029627611513,
+      "hwang_cancer": -0.050670781672657386
+    },
+    "Cancer": {
+      "im_intestinal": 0.38620065441246504,
+      "hwang_cancer": 0.10059308894363195
+    }
+  }
+}
