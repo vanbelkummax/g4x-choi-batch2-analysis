@@ -1,0 +1,19 @@
+Category,Cell_Type,Markers,N_Markers,Description
+Gastric Epithelial,Gastric_Pit,"MUC5AC, MUC6, TFF1, TFF2",4,Pit/mucous cells
+Gastric Epithelial,Gastric_Chief,"PGC, ATP4A",2,Parietal/chief cells
+Gastric Epithelial,Goblet,"MUC2, TFF3",2,Goblet cells
+Gastric Epithelial,Intestinal_Meta,"CDX1, CDX2, MUC2, CDH17",4,Intestinal metaplasia markers
+Gastric Epithelial,Enteroendocrine,"GHRL, SST, GAST, CHGA",4,Neuroendocrine cells
+Gastric Epithelial,Stem_Progenitor,"LGR5, PROM1, OLFM4, SOX2, SOX9",5,Stem/progenitor cells
+Gastric Epithelial,Epithelial_General,"EPCAM, CDH1, CLDN1, CLDN3, CLDN4, CLDN7, CLDN18",7,General epithelial
+Immune - T Cells,T_CD4,"CD3D, CD3E, CD4, IL7R",4,Helper T cells
+Immune - T Cells,T_CD8_Cytotoxic,"CD3D, CD3E, CD8A, GZMA, GZMB, PRF1",6,Cytotoxic T cells
+Immune - T Cells,T_Reg,"CD3D, CD4, FOXP3, IL2RA",4,Regulatory T cells
+Immune - T Cells,T_Exhausted,"PDCD1, CTLA4, LAG3, HAVCR2, TIGIT",5,Exhausted T cells
+Immune - B/Plasma,B_Cell,"MS4A1, CD19, CD79A",3,B cells
+Immune - B/Plasma,Plasma,"IGHA1, IGHG1, IGHM, JCHAIN, SDC1",5,Plasma cells
+Immune - Myeloid,Macrophage,"CD68, CD163, CSF1R, MRC1",4,Macrophages
+Immune - Myeloid,Monocyte,"CD14, ITGAM",2,Monocytes
+Stromal,Fibroblast,"COL1A1, LUM, VCAN, FN1",4,Fibroblasts
+Stromal,CAF,"ACTA2, FAP, PDGFRA, POSTN, THY1",5,Cancer-associated fibroblasts
+Stromal,Endothelial,"PECAM1, VWF",2,Endothelial cells
